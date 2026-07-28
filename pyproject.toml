@@ -21,3 +21,8 @@ dependencies = [
 "Documentation" = "https://github.com/ihmily/DouyinLiveRecorder"
 "Repository" = "https://github.com/ihmily/DouyinLiveRecorder"
 "Issues" = "https://github.com/ihmily/DouyinLiveRecorder/issues"
+
+[dependency-groups]
+dev = [
+    "autopep8>=2.3.2",
+]

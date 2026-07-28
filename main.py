@@ -1691,6 +1691,7 @@ def backup_file_start() -> None:
 
 
 def check_ffmpeg_existence() -> bool:
+    ffmpeg_ok = False
     try:
         result = subprocess.run(['ffmpeg', '-version'], check=True, capture_output=True, text=True)
         if result.returncode == 0:
@@ -1706,8 +1707,8 @@ def check_ffmpeg_existence() -> bool:
     finally:
         if check_ffmpeg():
             time.sleep(1)
-            return True
-    return False
+            ffmpeg_ok = True
+    return ffmpeg_ok
 
 
 # --------------------------初始化程序-------------------------------------
@@ -1779,6 +1780,17 @@ except URLError:
                             color_obj.YELLOW)
 except Exception as err:
     print("An unexpected error occurred:", err)
+
+# ---------------------------------------------------------------------------
+# 启动 Web 配置管理台（后台线程，不阻塞录制主流程）
+# 访问地址：http://127.0.0.1:5000
+# ---------------------------------------------------------------------------
+try:
+    from url_config_manager.backend.app import run_server as _run_config_manager
+    _run_config_manager()
+    print("Web 配置管理台已启动: http://127.0.0.1:5000")
+except Exception as _web_err:
+    print(f"Web 配置管理台启动失败（不影响录制）: {_web_err}")
 
 while True:
 
