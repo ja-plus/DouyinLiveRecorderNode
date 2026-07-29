@@ -49,34 +49,44 @@
 
 > 前提：已按原项目说明准备好 Python 环境，并在 `config/` 下存在 `URL_config.ini` 与 `config.ini`。
 
-### 方式一：随主程序一体启动（推荐）
+### 方式一：uv 一键启动（推荐）
 
-前端构建产物已输出到 `url_config_manager/backend/static/`，Flask 会直接提供这些静态页面，因此**无需单独启动前端服务**，管理台已集成进 `main.py`：
+项目使用 [uv](https://docs.astral.sh/uv/) 管理依赖（已提供 `pyproject.toml` + `uv.lock`），无需手动创建虚拟环境、无需 `pip install`，uv 会自动完成环境创建与依赖安装：
 
 ```bash
-pip install -r url_config_manager/backend/requirements.txt
-python main.py
+# 安装 uv（仅首次）
+# Windows：powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Linux/macOS：curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 启动（首次运行会自动创建 .venv 并按 uv.lock 安装全部依赖）
+uv run main.py
 ```
 
-启动录制程序后会输出一行日志 `Web 配置管理台已启动: http://127.0.0.1:5000`，浏览器访问该地址即可使用（管理台在后台守护线程运行，不影响录制主流程）。
+前端构建产物已输出到 `url_config_manager/backend/static/`，Flask 会直接提供这些静态页面，因此**无需单独启动前端服务**。启动后会输出一行日志 `Web 配置管理台已启动: http://127.0.0.1:5000`，浏览器访问该地址即可使用（管理台在后台守护线程运行，不影响录制主流程）。
+
+### 方式二：pip + python 传统方式
+
+```bash
+pip install -r requirements.txt
+python main.py
+```
 
 > 若修改了前端代码，需重新构建以更新 `backend/static/`：
 >
 > ```bash
 > cd url_config_manager/frontend
 > npm install
-> npm run build     # 先执行 vue-tsc 类型检查再打包，产物输出到 ../backend/static
+> npm run build     # 先执行 vue-tsc 类型检查再打包，产物输出到 ../backend/static（含 .gz 预压缩文件）
 > ```
 
-### 方式二：前后端分离开发模式
+### 方式三：前后端分离开发模式
 
 适合需要调试前端、使用 Vite 热更新的场景：
 
 ```bash
 # 终端 1：后端
 cd url_config_manager/backend
-pip install -r requirements.txt
-python app.py            # http://127.0.0.1:5000
+uv run app.py            # http://127.0.0.1:5000（也可用 python app.py）
 
 # 终端 2：前端开发服务器
 cd url_config_manager/frontend
