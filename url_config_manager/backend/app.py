@@ -194,16 +194,41 @@ def update_app_config(text: str, sections) -> str:
 # ---------------------------------------------------------------------------
 # 路由
 # ---------------------------------------------------------------------------
+def _config_file_response(path: str, build_payload):
+    """GET 配置接口的协商缓存包装：以文件 mtime+size 生成 ETag。
+
+    文件未变时返回 304（免解析、免传输）；文件不存在时不带缓存头正常返回。
+    Cache-Control 用 no-cache：浏览器可缓存但每次必须回源验证，保证拿到的永远是最新配置。
+    build_payload(text) 把文件文本构造成响应 dict，仅在需要完整响应时才调用。
+    """
+    try:
+        st = os.stat(path) if os.path.isfile(path) else None
+    except OSError:
+        st = None
+
+    if st is None:
+        return jsonify(build_payload(""))
+
+    etag = _make_etag(st, False)
+    if _is_not_modified(etag, st.st_mtime):
+        resp = make_response("", 304)
+    else:
+        with open(path, "r", encoding=ENCODING, errors="ignore") as f:
+            text = f.read()
+        resp = make_response(jsonify(build_payload(text)))
+    resp.headers["ETag"] = etag
+    resp.headers["Last-Modified"] = formatdate(st.st_mtime, usegmt=True)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.route("/api/config", methods=["GET"])
 def get_config():
     try:
-        if os.path.isfile(CONFIG_PATH):
-            with open(CONFIG_PATH, "r", encoding=ENCODING, errors="ignore") as f:
-                text = f.read()
-        else:
-            text = ""
-        items = parse_ini(text)
-        return jsonify({"success": True, "path": CONFIG_PATH, "items": items})
+        return _config_file_response(
+            CONFIG_PATH,
+            lambda text: {"success": True, "path": CONFIG_PATH, "items": parse_ini(text)},
+        )
     except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -230,13 +255,10 @@ def save_config():
 @app.route("/api/app-config", methods=["GET"])
 def get_app_config():
     try:
-        if os.path.isfile(APP_CONFIG_PATH):
-            with open(APP_CONFIG_PATH, "r", encoding=ENCODING, errors="ignore") as f:
-                text = f.read()
-        else:
-            text = ""
-        sections = parse_app_config(text)
-        return jsonify({"success": True, "path": APP_CONFIG_PATH, "sections": sections})
+        return _config_file_response(
+            APP_CONFIG_PATH,
+            lambda text: {"success": True, "path": APP_CONFIG_PATH, "sections": parse_app_config(text)},
+        )
     except Exception as e:  # noqa: BLE001
         return jsonify({"success": False, "error": str(e)}), 500
 
