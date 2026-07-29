@@ -13,10 +13,13 @@ URL_config.ini 约定的行格式（与主项目 main.py 保持一致）：
 """
 import os
 import re
+import gzip
 import logging
+import mimetypes
 import threading
+from email.utils import formatdate, parsedate_to_datetime
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, make_response, request
 
 # ---------------------------------------------------------------------------
 # 路径与常量
@@ -264,20 +267,189 @@ def save_app_config():
 
 
 # ---------------------------------------------------------------------------
+# 静态资源：gzip 压缩 + 协商缓存（ETag / Last-Modified / 304）
+# ---------------------------------------------------------------------------
+# 小于该字节数的文件压缩收益有限，直接原样返回
+GZIP_MIN_SIZE = 1024
+# gzip 压缩级别（6 为体积/CPU 的平衡点）
+GZIP_LEVEL = 6
+
+# 除 text/* 之外仍值得压缩的类型
+_COMPRESSIBLE_MIMES = {
+    "application/javascript",
+    "text/javascript",
+    "application/json",
+    "application/manifest+json",
+    "application/xml",
+    "text/xml",
+    "image/svg+xml",
+    "application/wasm",
+}
+
+# 带内容 hash 的构建产物（如 index-C4C5gsPO.js），内容变化必然改名，可长期强缓存
+_HASHED_ASSET_RE = re.compile(r"-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$")
+
+# 运行时 gzip 结果缓存：{绝对路径: ((mtime_ns, size), gzip 字节)}
+_GZIP_CACHE = {}
+_GZIP_CACHE_LOCK = threading.Lock()
+
+
+def _guess_mimetype(path: str) -> str:
+    mime, _ = mimetypes.guess_type(path)
+    return mime or "application/octet-stream"
+
+
+def _is_compressible(mime: str) -> bool:
+    return mime.startswith("text/") or mime in _COMPRESSIBLE_MIMES
+
+
+def _client_accepts_gzip() -> bool:
+    return "gzip" in (request.headers.get("Accept-Encoding") or "").lower()
+
+
+def _make_etag(st: os.stat_result, gzipped: bool) -> str:
+    """基于 mtime + size 生成强 ETag；压缩与非压缩内容必须使用不同 ETag。"""
+    return '"%x-%x%s"' % (int(st.st_mtime), st.st_size, "-gz" if gzipped else "")
+
+
+def _cache_control_for(rel_path: str) -> str:
+    rel = rel_path.replace("\\", "/")
+    if rel.startswith("assets/") and _HASHED_ASSET_RE.search(os.path.basename(rel)):
+        # 文件名含 hash：长期强缓存；即便如此仍返回 ETag，强制刷新时可走 304
+        return "public, max-age=31536000, immutable"
+    # index.html 等入口文件：每次请求都回源校验（协商缓存）
+    return "no-cache"
+
+
+def _load_gzip_bytes(full_path: str, st: os.stat_result):
+    """优先使用构建时生成的 .gz 文件；否则内存压缩并按 (mtime, size) 缓存。"""
+    pre_built = full_path + ".gz"
+    if os.path.isfile(pre_built):
+        try:
+            with open(pre_built, "rb") as f:
+                return f.read()
+        except OSError:
+            pass
+
+    stamp = (st.st_mtime_ns, st.st_size)
+    with _GZIP_CACHE_LOCK:
+        cached = _GZIP_CACHE.get(full_path)
+        if cached is not None and cached[0] == stamp:
+            return cached[1]
+    try:
+        with open(full_path, "rb") as f:
+            raw = f.read()
+    except OSError:
+        return None
+    # mtime=0：保证同一文件每次压缩输出一致，便于下游缓存
+    data = gzip.compress(raw, GZIP_LEVEL, mtime=0)
+    with _GZIP_CACHE_LOCK:
+        _GZIP_CACHE[full_path] = (stamp, data)
+    return data
+
+
+def _is_not_modified(etag: str, mtime: float) -> bool:
+    """按 RFC 9110：If-None-Match 优先于 If-Modified-Since。"""
+    inm = request.headers.get("If-None-Match")
+    if inm:
+        if inm.strip() == "*":
+            return True
+        for tag in inm.split(","):
+            tag = tag.strip()
+            if tag.startswith("W/"):
+                tag = tag[2:]
+            if tag == etag:
+                return True
+        return False
+
+    ims = request.headers.get("If-Modified-Since")
+    if ims:
+        try:
+            since = parsedate_to_datetime(ims)
+        except (TypeError, ValueError):
+            return False
+        if since is None:
+            return False
+        return int(mtime) <= int(since.timestamp())
+    return False
+
+
+def _send_static(rel_path: str):
+    """返回 static 目录下的文件；不存在则返回 None。
+
+    统一处理：gzip（预压缩文件优先）、ETag / Last-Modified 协商缓存、Cache-Control。
+    """
+    rel_path = (rel_path or "").replace("\\", "/").lstrip("/")
+    root = os.path.normpath(STATIC_DIR)
+    full_path = os.path.normpath(os.path.join(root, rel_path))
+    # 防止 ../ 目录穿越
+    if full_path != root and not full_path.startswith(root + os.sep):
+        return None
+    if not os.path.isfile(full_path):
+        return None
+
+    try:
+        st = os.stat(full_path)
+    except OSError:
+        return None
+
+    mime = _guess_mimetype(full_path)
+    body = None
+    gzipped = (
+        _client_accepts_gzip()
+        and _is_compressible(mime)
+        and st.st_size >= GZIP_MIN_SIZE
+    )
+    if gzipped:
+        body = _load_gzip_bytes(full_path, st)
+        # 压缩失败或反而变大时退回原文件
+        if body is None or len(body) >= st.st_size:
+            gzipped = False
+            body = None
+
+    etag = _make_etag(st, gzipped)
+    if _is_not_modified(etag, st.st_mtime):
+        resp = make_response("", 304)
+    else:
+        if body is None:
+            try:
+                with open(full_path, "rb") as f:
+                    body = f.read()
+            except OSError:
+                return None
+        resp = make_response(body)
+        resp.headers["Content-Type"] = mime
+        resp.headers["Content-Length"] = str(len(body))
+        if gzipped:
+            resp.headers["Content-Encoding"] = "gzip"
+
+    resp.headers["ETag"] = etag
+    resp.headers["Last-Modified"] = formatdate(st.st_mtime, usegmt=True)
+    resp.headers["Cache-Control"] = _cache_control_for(rel_path)
+    # 同一 URL 会根据 Accept-Encoding 返回不同内容，必须声明 Vary
+    resp.headers["Vary"] = "Accept-Encoding"
+    resp.headers["Accept-Ranges"] = "none"
+    return resp
+
+
+# ---------------------------------------------------------------------------
 # 前端静态页面（构建产物位于 backend/static）
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
-    return send_from_directory(STATIC_DIR, "index.html")
+    resp = _send_static("index.html")
+    if resp is None:
+        return jsonify({"success": False, "error": "前端未构建：缺少 static/index.html"}), 404
+    return resp
 
 
 @app.route("/<path:path>")
 def serve_spa(path):
     """非 /api 请求：存在对应静态文件则返回，否则回退 index.html（SPA 前端路由）。"""
-    full = os.path.join(STATIC_DIR, path)
-    if os.path.isfile(full):
-        return send_from_directory(STATIC_DIR, path)
-    return send_from_directory(STATIC_DIR, "index.html")
+    resp = _send_static(path)
+    if resp is not None:
+        return resp
+    return index()
 
 
 # ---------------------------------------------------------------------------
