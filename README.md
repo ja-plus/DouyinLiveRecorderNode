@@ -4,20 +4,19 @@
 
 ---
 
-## 📖 原项目简介
-
-一款**简易**的可循环值守的直播录制工具，基于 FFmpeg 实现多平台直播源录制，支持自定义配置录制以及直播状态推送。支持抖音、TikTok、快手、虎牙、斗鱼、B站、小红书等数十个平台。
-
-- **原项目地址**：https://github.com/ihmily/DouyinLiveRecorder
-- **原项目文档 / 支持平台 / 使用方式 / 部署方式**：请前往上方原项目仓库查看完整 README。
-
-录制功能本身的用法与原项目完全一致（配置文件位于 `config/` 目录，程序入口为 `main.py`），本仓库未改变其行为。
-
----
-
 ## ✨ 本项目新增内容：Web 配置管理台
 
 原项目的配置需要手动编辑 `config/URL_config.ini` 和 `config/config.ini` 两个文本文件，容易出错。本项目在 `url_config_manager/` 目录下新增了一套**前后端分离**的 Web 管理界面，让配置可视化、更易维护。
+
+### 运行截图
+
+**直播间管理**
+
+![直播间管理](url_config_manager/screenshots/url-config.png)
+
+**系统配置**
+
+![系统配置](url_config_manager/screenshots/app-config.png)
 
 ### 功能特性
 
@@ -43,16 +42,6 @@
 | 后端 | Python + Flask（读取/写回 ini 文件，提供 REST 接口） |
 | 前端 | Vue 3 + TypeScript + Vite + Vue Router |
 | UI | Arco Design Vue（按需引入） + [stk-table-vue](https://github.com/xyy94813/stk-table-vue)（高性能表格） |
-
-### 运行截图
-
-**直播间管理**
-
-![直播间管理](url_config_manager/screenshots/url-config.png)
-
-**系统配置**
-
-![系统配置](url_config_manager/screenshots/app-config.png)
 
 ---
 

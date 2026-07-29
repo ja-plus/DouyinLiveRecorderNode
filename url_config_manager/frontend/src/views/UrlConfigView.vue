@@ -2,93 +2,51 @@
   <div class="page">
     <div class="header">
       <div class="title">URL_config.ini 管理</div>
-      <div class="toolbar">
-        <a-button :loading="loading" @click="load">
-          <template #icon><icon-refresh /></template>
-          重新加载
-        </a-button>
-        <a-button type="outline" @click="openAddModal">
-          <template #icon><icon-plus /></template>
-          新增
-        </a-button>
-        <a-button type="primary" :loading="saving" @click="save">
-          <template #icon><icon-save /></template>
-          保存
-        </a-button>
-      </div>
     </div>
 
     <div class="sub-bar">
       <div class="batch-actions">
-        <a-popconfirm
-          content="确认删除选中的记录？"
-          type="warning"
-          ok-text="删除"
-          cancel-text="取消"
-          @ok="deleteChecked"
-        >
-          <a-button size="small" status="danger" :disabled="checkedCount === 0"
-            >删除选中</a-button
-          >
+        <a-popconfirm content="确认删除选中的记录？" type="warning" ok-text="删除" cancel-text="取消" @ok="deleteChecked">
+          <a-button size="small" status="danger" :disabled="checkedCount === 0">删除</a-button>
         </a-popconfirm>
-        <a-button
-          size="small"
-          :disabled="checkedCount === 0"
-          @click="setCheckedEnabled(true)"
-          >开启选中</a-button
-        >
-        <a-button
-          size="small"
-          :disabled="checkedCount === 0"
-          @click="setCheckedEnabled(false)"
-          >关闭选中</a-button
-        >
+        <a-button size="small" type="primary" :disabled="checkedCount === 0"
+          @click="setCheckedEnabled(true)">开启</a-button>
+        <a-button size="small" type="outline" :disabled="checkedCount === 0"
+          @click="setCheckedEnabled(false)">关闭</a-button>
       </div>
-      <span
-        >已选 {{ checkedCount }} 条，共 {{ rows.length }} 条，启用
-        {{ enabledCount }} 条，注释 {{ rows.length - enabledCount }} 条</span
-      >
-      <span v-if="dirty" class="dirty-tip">● 有未保存的修改</span>
+      <div class="toolbar">
+        <a-button :loading="loading" @click="load">
+          <template #icon><icon-refresh /></template>
+        </a-button>
+        <a-button type="outline" @click="openAddModal">
+          <template #icon><icon-plus /></template>
+        </a-button>
+        <a-button type="primary" :loading="saving" @click="save">
+          <template #icon><icon-save /><span v-if="dirty" class="dirty-tip">●</span></template>
+        </a-button>
+      </div>
     </div>
 
-    <StkTable
-      class="table"
-      row-key="id"
-      :theme="isDark ? 'dark' : 'light'"
-      :columns="columns"
-      :data-source="rows"
-      :row-height="48"
-      no-data-full
-      fixed-col-shadow
-      bordered
-      stripe
-      virtual
-      @row-order-change="onRowOrderChange"
-    >
+    <StkTable class="table" row-key="id" :theme="isDark ? 'dark' : 'light'" :columns="columns" :data-source="rows"
+      :row-height="48" no-data-full fixed-col-shadow bordered stripe virtual @row-order-change="onRowOrderChange">
       <template #empty>
         <div>
           暂无直播间记录，<a-button size="small" type="text" @click="openAddModal">点击新增</a-button>
         </div>
       </template>
     </StkTable>
+    <div class="footer-bar">
+      <span class="footer-bar-text">已选 {{ checkedCount }} 条，共 {{ rows.length }} 条，启用
+        {{ enabledCount }} 条，注释 {{ rows.length - enabledCount }} 条</span>
+    </div>
 
     <!-- 新增记录弹窗 -->
-    <a-modal
-      v-model:visible="addModalVisible"
-      title="新增直播间"
-      ok-text="保存"
-      cancel-text="取消"
-      @before-ok="handleAddOk"
-      @cancel="addForm.url = ''"
-    >
+    <a-modal v-model:visible="addModalVisible" title="新增直播间" ok-text="保存" cancel-text="取消" modal-class="add-room-modal"
+      @before-ok="handleAddOk" @cancel="addForm.url = ''">
       <a-form :model="addForm" layout="vertical">
         <a-form-item field="url" label="直播间URL" required>
-          <a-input
-            v-model="addForm.url"
-            placeholder="例如：https://live.douyin.com/123456789"
-            allow-clear
-            @press-enter="handleAddConfirmByEnter"
-          />
+          <a-input v-model="addForm.url" placeholder="例如：https://live.douyin.com/123456789" allow-clear
+            @press-enter="handleAddConfirmByEnter" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -102,7 +60,6 @@ import {
   computed,
   onMounted,
   provide,
-  watch,
   markRaw,
 } from "vue";
 import {
@@ -129,7 +86,6 @@ let uid = 1;
 const rows = ref<UrlRow[]>([]);
 const loading = ref(false);
 const saving = ref(false);
-const dirty = ref(false);
 
 // 新增弹窗状态
 const addModalVisible = ref(false);
@@ -155,14 +111,14 @@ const columns: StkTableColumn<UrlRow>[] = [
     customCell: CheckboxCell(),
     customHeaderCell: CheckboxAllCell(),
   },
-  {
-    type: "dragRow",
-    key: "dragRow",
-    title: "",
-    dataIndex: "" as never,
-    width: 40,
-    align: "center",
-  },
+  // {
+  //   type: "dragRow",
+  //   key: "dragRow",
+  //   title: "",
+  //   dataIndex: "" as never,
+  //   width: 40,
+  //   align: "center",
+  // },
   {
     type: "seq",
     title: "",
@@ -170,14 +126,14 @@ const columns: StkTableColumn<UrlRow>[] = [
     width: 30,
     align: "center",
   },
-  { title: "主播名称", dataIndex: "name", width: 100 },
-  { title: "直播间URL", dataIndex: "url", minWidth: 300 },
+  { title: "主播", dataIndex: "name", width: 100 },
+  { title: "URL", dataIndex: "url", minWidth: 300 },
   {
     title: "操作",
     dataIndex: "_action" as never,
     align: "center",
     fixed: "right",
-    width: 150,
+    width: 90,
     customCell: markRaw(ActionCell),
   },
 ];
@@ -196,7 +152,7 @@ async function load(): Promise<void> {
       name: it.name || "",
       checked: false,
     }));
-    dirty.value = false;
+    savedSnapshot.value = contentSnapshot.value;
     Message.success(`已加载 ${rows.value.length} 条记录`);
   } catch (e) {
     Message.error("加载失败: " + (e as Error).message);
@@ -299,7 +255,7 @@ async function save(): Promise<void> {
     });
     const data: ApiSaveConfigResp = await res.json();
     if (!data.success) throw new Error(data.error || "未知错误");
-    dirty.value = false;
+    savedSnapshot.value = contentSnapshot.value;
     Message.success(`保存成功，共写入 ${data.count} 条记录`);
   } catch (e) {
     Message.error("保存失败: " + (e as Error).message);
@@ -308,21 +264,41 @@ async function save(): Promise<void> {
   }
 }
 
-// 监听数据变化，标记未保存状态（快照不含 checked，勾选复选框不算修改）
+// 未保存状态：当前内容与最近一次加载/保存的基线快照比较（快照不含 checked，勾选复选框不算修改）
+// 用 computed 而非 watch+loading 标志，避免 watcher 异步触发时 loading 已复位导致误标 dirty
 const contentSnapshot = computed(() =>
   rows.value
     .map((r) => `${r.enabled}|${r.quality}|${r.url}|${r.name}`)
     .join("\n"),
 );
-watch(contentSnapshot, () => {
-  if (!loading.value) dirty.value = true;
-});
+const savedSnapshot = ref(contentSnapshot.value);
+const dirty = computed(() => contentSnapshot.value !== savedSnapshot.value);
 
 onMounted(load);
 </script>
 
+<style>
+/* 弹窗挂在 body 下，scoped 样式作用不到，用全局样式做移动端适配 */
+@media (max-width: 640px) {
+  .add-room-modal {
+    width: 92vw;
+  }
+
+  /* 输入框字号提到 16px，避免 iOS Safari 聚焦时自动放大页面 */
+  .add-room-modal .arco-input {
+    font-size: 16px;
+  }
+}
+</style>
+
 <style scoped>
+/* flex 纵向布局：头部/工具栏固定高度，表格 flex:1 占满剩余空间 */
 .page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   max-width: 1100px;
   margin: 0 auto;
   padding: 24px 20px;
@@ -333,6 +309,8 @@ onMounted(load);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
@@ -349,26 +327,62 @@ onMounted(load);
 
 .sub-bar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   font-size: 13px;
   color: var(--color-text-3, #86909c);
   margin-bottom: 12px;
 }
 
+.footer-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--color-text-3, #86909c);
+  margin-top: 12px;
+}
+
+.footer-bar-text {
+  margin-left: auto;
+}
+
 .batch-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .dirty-tip {
+  position: absolute;
+  right: 4px;
+  top: 0;
   color: #ff7d00;
 }
 
 .table {
-  height: calc(100vh - 220px);
+  flex: 1;
+  min-height: 0;
   background: var(--color-bg-2, #fff);
   border-radius: 6px;
+}
+
+/* 移动端：缩小内边距，头部/工具栏自动换行 */
+@media (max-width: 640px) {
+  .page {
+    padding: 12px 10px;
+  }
+
+  .title {
+    font-size: 17px;
+  }
+
+  .toolbar {
+    gap: 8px;
+  }
 }
 
 /* stk-table 滚动条美化（.stk-table 根元素即滚动容器）：

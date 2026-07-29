@@ -5,18 +5,15 @@
             <div class="toolbar">
                 <a-button :loading="loading" @click="load">
                     <template #icon><icon-refresh /></template>
-                    重新加载
                 </a-button>
                 <a-button type="primary" :loading="saving" @click="save">
-                    <template #icon><icon-save /></template>
-                    保存
+                    <template #icon><icon-save /><span v-if="dirty" class="dirty-tip">●</span></template>
                 </a-button>
             </div>
         </div>
 
         <div class="sub-bar">
             <span>共 {{ sections.length }} 个分区，{{ totalCount }} 个配置项</span>
-            <span v-if="dirty" class="dirty-tip">● 有未保存的修改</span>
         </div>
 
         <a-spin :loading="loading" class="spin-wrap">
@@ -76,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import type {
     ApiGetAppConfigResp,
@@ -90,7 +87,6 @@ const API = '/api/app-config';
 const sections = ref<AppConfigSection[]>([]);
 const loading = ref(false);
 const saving = ref(false);
-const dirty = ref(false);
 
 const totalCount = computed(() => sections.value.reduce((n, s) => n + s.items.length, 0));
 
@@ -131,7 +127,7 @@ async function load(): Promise<void> {
         const data: ApiGetAppConfigResp = await res.json();
         if (!data.success) throw new Error(data.error || '未知错误');
         sections.value = data.sections || [];
-        dirty.value = false;
+        savedSnapshot.value = contentSnapshot.value;
         Message.success(`已加载 ${totalCount.value} 个配置项`);
     } catch (e) {
         Message.error('加载失败: ' + (e as Error).message);
@@ -150,7 +146,7 @@ async function save(): Promise<void> {
         });
         const data: ApiSaveConfigResp = await res.json();
         if (!data.success) throw new Error(data.error || '未知错误');
-        dirty.value = false;
+        savedSnapshot.value = contentSnapshot.value;
         Message.success(`保存成功，共写入 ${data.count} 个配置项`);
     } catch (e) {
         Message.error('保存失败: ' + (e as Error).message);
@@ -159,17 +155,19 @@ async function save(): Promise<void> {
     }
 }
 
-// 监听内容变化，标记未保存状态
+// 未保存状态：当前内容与最近一次加载/保存的基线快照比较
+// 用 computed 而非 watch+loading 标志，避免 watcher 异步触发时 loading 已复位导致误标 dirty
 const contentSnapshot = computed(() => JSON.stringify(sections.value));
-watch(contentSnapshot, () => {
-    if (!loading.value) dirty.value = true;
-});
+const savedSnapshot = ref(contentSnapshot.value);
+const dirty = computed(() => contentSnapshot.value !== savedSnapshot.value);
 
 onMounted(load);
 </script>
 
 <style scoped>
 .page {
+    /* 父容器 .content 是 flex 列，需显式撑满宽度后再由 max-width 限宽居中 */
+    width: 100%;
     max-width: 1100px;
     margin: 0 auto;
     padding: 24px 20px;
@@ -205,6 +203,9 @@ onMounted(load);
 
 .dirty-tip {
     color: #ff7d00;
+    position: absolute;
+    right: 2px;
+    top: -6px;
 }
 
 .spin-wrap {

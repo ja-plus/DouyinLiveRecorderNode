@@ -3,7 +3,7 @@
     <a-layout-header class="topbar">
       <div class="brand">
         <icon-video-camera class="brand-icon" />
-        <span>DouyinLiveRecorder 管理台</span>
+        <span>DLR 管理台</span>
       </div>
       <a-menu
         class="topbar-menu"
@@ -56,8 +56,11 @@ body[arco-theme='dark'] {
 </style>
 
 <style scoped>
+/* a-layout 本身是 flex 纵向布局，固定为视口高度，让子页面可用 flex 占满剩余空间 */
 .layout {
-  min-height: 100vh;
+  height: 100vh;
+  /* 移动端地址栏收起/展开时用动态视口高度，避免出现空白或裁剪 */
+  height: 100dvh;
 }
 .topbar {
   display: flex;
@@ -84,9 +87,42 @@ body[arco-theme='dark'] {
 }
 .topbar-menu {
   flex: 1;
+  /* 允许菜单在 flex 容器内收缩，否则窄屏下 arco 的溢出折叠计算错乱导致换行 */
+  min-width: 0;
   background: transparent;
+}
+
+/* 移动端：压缩间距和菜单项内边距，保证顶栏单行摆下 */
+@media (max-width: 640px) {
+  .topbar {
+    gap: 12px;
+    padding: 0 12px;
+  }
+
+  .brand {
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .topbar-menu :deep(.arco-menu-item) {
+    padding: 0 8px;
+    margin: 0 2px;
+  }
+}
+
+/* 超窄屏：只留品牌图标，把空间让给菜单 */
+@media (max-width: 420px) {
+  .brand span {
+    display: none;
+  }
 }
 .content {
   padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* 普通长页面（如系统配置）在此容器内滚动 */
+  overflow-y: auto;
 }
 </style>

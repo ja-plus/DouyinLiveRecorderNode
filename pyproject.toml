@@ -26,3 +26,8 @@ dependencies = [
 dev = [
     "autopep8>=2.3.2",
 ]
+
+[tool.uv.workspace]
+members = [
+    "url_config_manager/backend",
+]
