@@ -1783,12 +1783,20 @@ except Exception as err:
 
 # ---------------------------------------------------------------------------
 # 启动 Web 配置管理台（后台线程，不阻塞录制主流程）
-# 访问地址：http://127.0.0.1:5000
+# 存在 TLS 证书时以 HTTPS 启动（浏览器可协商 HTTP/2），否则退回 HTTP
 # ---------------------------------------------------------------------------
 try:
     from url_config_manager.backend.app import run_server as _run_config_manager
-    _run_config_manager()
-    print("Web 配置管理台已启动: http://127.0.0.1:5000")
+
+    _certs_dir = os.path.join(script_path, 'url_config_manager', 'backend', 'certs')
+    _certfile = os.path.join(_certs_dir, 'cert.pem')
+    _keyfile = os.path.join(_certs_dir, 'key.pem')
+    if os.path.isfile(_certfile) and os.path.isfile(_keyfile):
+        _run_config_manager(certfile=_certfile, keyfile=_keyfile)
+        print("Web 配置管理台已启动: https://127.0.0.1:5000")
+    else:
+        _run_config_manager()
+        print("Web 配置管理台已启动: http://127.0.0.1:5000")
 except Exception as _web_err:
     print(f"Web 配置管理台启动失败（不影响录制）: {_web_err}")
 

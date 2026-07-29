@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import UrlConfigView from '../views/UrlConfigView.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -7,7 +8,7 @@ const router = createRouter({
     {
       path: '/url-config',
       name: 'urlConfig',
-      component: () => import('../views/UrlConfigView.vue'),
+      component: UrlConfigView,
       meta: { title: '直播间管理' },
     },
     {

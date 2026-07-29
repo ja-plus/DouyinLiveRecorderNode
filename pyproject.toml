@@ -15,6 +15,8 @@ dependencies = [
     "httpx[http2]>=0.28.1",
     "PyExecJS>=1.5.1",
     "flask>=3.0.0",
+    "hypercorn>=0.17.0",
+    "asgiref>=3.8.0",
     "waitress>=3.0.0"
 ]
 

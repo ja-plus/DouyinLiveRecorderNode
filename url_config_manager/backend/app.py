@@ -453,31 +453,90 @@ def serve_spa(path):
 # ---------------------------------------------------------------------------
 # 启动入口
 # ---------------------------------------------------------------------------
-def run_server(host: str = "0.0.0.0", port: int = 5000) -> threading.Thread:
-    """在后台守护线程中启动 Web 管理台，不阻塞主录制流程。"""
+def _serve_hypercorn(host: str, port: int, certfile: str | None, keyfile: str | None):
+    """用 Hypercorn（ASGI）承载 Flask 应用，提供 HTTP/2 支持。
+
+    - 明文监听时支持 h2c（prior-knowledge 与 Upgrade 升级），HTTP/1.1 客户端不受影响；
+    - 提供证书时启用 TLS + ALPN，浏览器即可协商 h2（浏览器仅在 HTTPS 下使用 HTTP/2）。
+    """
+    import asyncio
+
+    from asgiref.wsgi import WsgiToAsgi
+    from hypercorn.asyncio import serve as hypercorn_serve
+    from hypercorn.config import Config as HypercornConfig
+
+    asgi_app = WsgiToAsgi(app)
+
+    async def _asgi(scope, receive, send):
+        # WsgiToAsgi 不处理 lifespan 协议，这里补齐，避免 Hypercorn 启动时告警
+        if scope["type"] == "lifespan":
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+        else:
+            await asgi_app(scope, receive, send)
+
+    config = HypercornConfig()
+    config.bind = [f"{host}:{port}"]
+    config.alpn_protocols = ["h2", "http/1.1"]
+    # 关闭逐请求访问日志，并将错误日志阈值提到 WARNING（抑制启动 banner，避免干扰主程序日志）
+    config.accesslog = None
+    config.loglevel = "WARNING"
+    if certfile and keyfile:
+        config.certfile = certfile
+        config.keyfile = keyfile
+
+    async def _serve_forever():
+        # 显式传入永不触发的 shutdown_trigger：默认实现会注册信号处理器，
+        # 在非主线程中调用 signal.signal 会抛 ValueError
+        await hypercorn_serve(_asgi, config, shutdown_trigger=asyncio.Event().wait)
+
+    asyncio.run(_serve_forever())
+
+
+def run_server(
+    host: str = "0.0.0.0",
+    port: int = 5000,
+    certfile: str | None = None,
+    keyfile: str | None = None,
+) -> threading.Thread:
+    """在后台守护线程中启动 Web 管理台，不阻塞主录制流程。
+
+    优先使用 Hypercorn（支持 HTTP/2），未安装时依次退回 waitress / Werkzeug（仅 HTTP/1.1）。
+    """
     def _run():
         try:
-            # 生产级 WSGI 服务器：多线程、自带连接数与超时限制，且跨平台（Windows 可用）
-            from waitress import create_server
+            _serve_hypercorn(host, port, certfile, keyfile)
+            return
         except ImportError:
-            # 未安装 waitress 时退回 Werkzeug 开发服务器，保证功能可用
+            pass
+        try:
+            # 生产级 WSGI 服务器：多线程、自带连接数与超时限制，且跨平台（Windows 可用）
+            # 用 create_server 而非 serve()：后者会调用 logging.basicConfig() 并打印 banner，
+            # 会干扰主程序既有的日志配置
+            from waitress import create_server
+            create_server(app, host=host, port=port, threads=8).run()
+        except ImportError:
+            # 兜底退回 Werkzeug 开发服务器，保证功能可用
             # 关闭 reloader（子进程模式不适合嵌入主程序），关闭 debug 减少日志
             app.run(host=host, port=port, debug=False, use_reloader=False)
-            return
-        # 用 create_server 而非 serve()：后者会调用 logging.basicConfig() 并打印 banner，
-        # 会干扰主程序既有的日志配置
-        create_server(app, host=host, port=port, threads=8).run()
 
     # 抑制逐请求访问日志，仅保留错误（满足“少量日志”）
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logging.getLogger("waitress").setLevel(logging.ERROR)
+    logging.getLogger("hypercorn.access").setLevel(logging.ERROR)
+    logging.getLogger("hypercorn.error").setLevel(logging.ERROR)
     thread = threading.Thread(target=_run, name="url-config-manager", daemon=True)
     thread.start()
     return thread
 
 
 if __name__ == "__main__":
-    # 本地调试入口：debug 模式会开放 Werkzeug 交互式调试器（可在浏览器中执行任意代码），
-    # 因此只监听回环地址，避免暴露到局域网
+    # 本地调试入口：直接前台运行 Hypercorn（HTTP/2）。
+    # 只监听回环地址，避免暴露到局域网
     print(f"配置文件路径: {CONFIG_PATH}")
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    _serve_hypercorn("127.0.0.1", 5000, None, None)
