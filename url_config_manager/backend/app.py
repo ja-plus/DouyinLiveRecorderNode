@@ -458,16 +458,28 @@ def serve_spa(path):
 def run_server(host: str = "0.0.0.0", port: int = 5000) -> threading.Thread:
     """在后台守护线程中启动 Web 管理台，不阻塞主录制流程。"""
     def _run():
-        # 关闭 reloader（子进程模式不适合嵌入主程序），关闭 debug 减少日志
-        app.run(host=host, port=port, debug=False, use_reloader=False)
+        try:
+            # 生产级 WSGI 服务器：多线程、自带连接数与超时限制，且跨平台（Windows 可用）
+            from waitress import create_server
+        except ImportError:
+            # 未安装 waitress 时退回 Werkzeug 开发服务器，保证功能可用
+            # 关闭 reloader（子进程模式不适合嵌入主程序），关闭 debug 减少日志
+            app.run(host=host, port=port, debug=False, use_reloader=False)
+            return
+        # 用 create_server 而非 serve()：后者会调用 logging.basicConfig() 并打印 banner，
+        # 会干扰主程序既有的日志配置
+        create_server(app, host=host, port=port, threads=8).run()
 
-    # 抑制 werkzeug 逐请求访问日志，仅保留错误（满足“少量日志”）
+    # 抑制逐请求访问日志，仅保留错误（满足“少量日志”）
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    logging.getLogger("waitress").setLevel(logging.ERROR)
     thread = threading.Thread(target=_run, name="url-config-manager", daemon=True)
     thread.start()
     return thread
 
 
 if __name__ == "__main__":
+    # 本地调试入口：debug 模式会开放 Werkzeug 交互式调试器（可在浏览器中执行任意代码），
+    # 因此只监听回环地址，避免暴露到局域网
     print(f"配置文件路径: {CONFIG_PATH}")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True)
