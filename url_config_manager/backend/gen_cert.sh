@@ -37,6 +37,9 @@ fi
 
 mkdir -p "$CERTS_DIR"
 
+# 防止 Git Bash（MSYS）把 -subj 的 /CN=... 误转换成 Windows 路径
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*"
+
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
     -keyout "$KEY_FILE" -out "$CERT_FILE" \
     -days "$DAYS" -nodes \

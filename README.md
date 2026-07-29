@@ -94,6 +94,20 @@ npm install
 npm run dev              # http://localhost:5173（/api 已代理到后端）
 ```
 
+### 启用 HTTPS（可选，支持 HTTP/2）
+
+管理台默认以 HTTP 启动。若希望以 HTTPS 访问（浏览器仅在 HTTPS 下使用 HTTP/2），可用仓库提供的脚本生成自签名证书：
+
+```bash
+cd url_config_manager/backend
+./gen_cert.sh                    # 默认 SAN：localhost / 127.0.0.1 / ::1
+./gen_cert.sh 192.168.1.10 nas.lan   # 可追加局域网 IP 或域名到 SAN
+```
+
+脚本依赖 `openssl`（Git Bash / Linux / macOS 自带），会在 `url_config_manager/backend/certs/` 下生成 `cert.pem` 与 `key.pem`（该目录已加入 `.gitignore`，不会被提交）。`main.py` 启动时检测到这两个文件就会自动以 HTTPS 启动：`https://127.0.0.1:5000`。
+
+> 自签名证书首次访问时浏览器会提示“不安全”，选择“继续访问”即可；如需去除警告，可将 `cert.pem` 导入系统受信任证书列表。
+
 ### 后端接口
 
 | 方法 | 路径 | 说明 |
@@ -111,6 +125,7 @@ npm run dev              # http://localhost:5173（/api 已代理到后端）
 url_config_manager/
 ├── backend/
 │   ├── app.py            # Flask 服务：读写配置 + 提供静态页面 + run_server()
+│   ├── gen_cert.sh       # 生成自签名 TLS 证书（输出到 certs/，用于 HTTPS 启动）
 │   ├── requirements.txt
 │   └── static/           # 前端构建产物（vite build 输出，随 Flask 一起提供）
 ├── frontend/

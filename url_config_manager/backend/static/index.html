@@ -4,9 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- 预加载默认页（直播间管理）的配置接口：解析到此处即发请求，与 JS 下载/执行并行，
+         省去“HTML → JS 解析完 → 再请求 API”的串行等待。
+         crossorigin 不可省：需与 fetch() 默认凭据模式匹配，否则浏览器不复用预加载结果 -->
+    <link rel="preload" href="/api/config" as="fetch" crossorigin />
     <title>DouyinLiveRecorder 管理台</title>
-    <script type="module" crossorigin src="./assets/index-C4C5gsPO.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BqFAPu2F.css">
+    <script type="module" crossorigin src="./assets/index-BEzEwnjL.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CL2suKwW.css">
   </head>
   <body>
     <div id="app"></div>
