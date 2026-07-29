@@ -286,9 +286,6 @@ _COMPRESSIBLE_MIMES = {
     "application/wasm",
 }
 
-# 带内容 hash 的构建产物（如 index-C4C5gsPO.js），内容变化必然改名，可长期强缓存
-_HASHED_ASSET_RE = re.compile(r"-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$")
-
 # 运行时 gzip 结果缓存：{绝对路径: ((mtime_ns, size), gzip 字节)}
 _GZIP_CACHE = {}
 _GZIP_CACHE_LOCK = threading.Lock()
@@ -314,8 +311,9 @@ def _make_etag(st: os.stat_result, gzipped: bool) -> str:
 
 def _cache_control_for(rel_path: str) -> str:
     rel = rel_path.replace("\\", "/")
-    if rel.startswith("assets/") and _HASHED_ASSET_RE.search(os.path.basename(rel)):
-        # 文件名含 hash：长期强缓存；即便如此仍返回 ETag，强制刷新时可走 304
+    if rel.startswith("assets/"):
+        # assets/ 下均为 vite 构建产物，文件名带内容 hash（内容变化必然改名），
+        # 可长期强缓存；即便如此仍返回 ETag，强制刷新时可走 304
         return "public, max-age=31536000, immutable"
     # index.html 等入口文件：每次请求都回源校验（协商缓存）
     return "no-cache"
