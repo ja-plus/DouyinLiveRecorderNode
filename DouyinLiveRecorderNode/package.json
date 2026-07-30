@@ -5,7 +5,7 @@
   "type": "module",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js",
+    "start": "node --max-semi-space-size=4 --max-old-space-size=256 main.js",
     "dev": "node --watch main.js",
     "config-manager": "node config-manager/server.js"
   },

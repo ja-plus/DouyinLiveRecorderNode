@@ -44,23 +44,26 @@ export function buildFfmpegCommand({
 }) {
   const userAgent = 'Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile Safari/537.36';
 
+  // 直播流格式明确，探测缓存无需过大，降低 probesize/analyzeduration 可减少
+  // 每路 ffmpeg 启动时的内存占用并加快出画
   let rwTimeout = '15000000';
-  let analyzeduration = '20000000';
-  let probesize = '10000000';
+  let analyzeduration = '2000000';
+  let probesize = '1000000';
   let bufsize = '8000k';
   let maxMuxingQueueSize = '1024';
 
   if (isOverseas) {
     rwTimeout = '50000000';
-    analyzeduration = '40000000';
-    probesize = '20000000';
+    analyzeduration = '4000000';
+    probesize = '2000000';
     bufsize = '15000k';
     maxMuxingQueueSize = '2048';
   }
 
+  // 录制实时直播流不使用 -re（按帧率节流仅适用于推流本地文件场景，
+  // 对直播输入只会引入额外缓冲与节流开销）
   const cmd = [
     'ffmpeg', '-y',
-    '-v', 'verbose',
     '-rw_timeout', rwTimeout,
     '-loglevel', 'error',
     '-hide_banner',
@@ -70,7 +73,7 @@ export function buildFfmpegCommand({
     '-analyzeduration', analyzeduration,
     '-probesize', probesize,
     '-fflags', '+discardcorrupt',
-    '-re', '-i', sourceUrl,
+    '-i', sourceUrl,
     '-bufsize', bufsize,
     '-sn', '-dn',
     '-reconnect_delay_max', '60',
@@ -80,10 +83,10 @@ export function buildFfmpegCommand({
     '-avoid_negative_ts', '1'
   ];
 
-  // Add headers for specific platforms
+  // Add headers for specific platforms（插入到 -i 之前才能作为输入选项生效）
   const recordHeaders = getRecordHeaders(platform, recordUrl);
   if (recordHeaders) {
-    cmd.splice(11, 0, '-headers', recordHeaders);
+    cmd.splice(cmd.indexOf('-i'), 0, '-headers', recordHeaders);
   }
 
   // Add proxy
@@ -178,8 +181,10 @@ function getRecordHeaders(platform, liveUrl) {
  */
 export function runRecording(ffmpegCommand, { recordName, recordUrl, onStop }) {
   return new Promise((resolve) => {
+    // stdout/stderr 不消费时必须 ignore：pipe 缓冲区被 ffmpeg 日志写满后
+    // 会阻塞 ffmpeg 导致录制假死；stdin 保留用于发送 'q' 优雅停止
     const proc = spawn(ffmpegCommand[0], ffmpegCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['pipe', 'ignore', 'ignore'],
       windowsHide: true
     });
 

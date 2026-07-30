@@ -32,8 +32,12 @@ const prettyStream = pretty({
   ignore: 'pid,hostname'
 });
 
+// 控制台默认 info 级别，减少 pretty 格式化的 CPU 开销；
+// 排查问题时可通过 LOG_LEVEL=debug 环境变量打开，文件日志仍保留 debug 全量
+const consoleLevel = process.env.LOG_LEVEL || 'info';
+
 const streams = [
-  { level: 'debug', stream: prettyStream },
+  { level: consoleLevel, stream: prettyStream },
   { level: 'debug', stream: pino.destination({ dest: path.join(LOGS_DIR, 'streamget.log'), mkdir: true }) },
   { level: 'info', stream: pino.destination({ dest: path.join(LOGS_DIR, 'PlayURL.log'), mkdir: true }) }
 ];

@@ -4,19 +4,36 @@
 import { request, Agent, ProxyAgent, interceptors } from 'undici';
 import { handleProxyAddr } from '../utils/index.js';
 
+// dispatcher 按 代理地址+重定向次数 缓存复用，避免每次请求都新建 Agent
+// 导致 TCP/TLS 重复握手以及 socket 句柄持续累积
+const dispatcherCache = new Map();
+
+const AGENT_OPTIONS = {
+  connect: { rejectUnauthorized: false },
+  connections: 16,
+  keepAliveTimeout: 30000,
+  keepAliveMaxTimeout: 120000
+};
+
 /**
  * Create a dispatcher for undici.
  * undici v7 移除了 request() 的 maxRedirections 选项，需通过 redirect 拦截器实现重定向跟随
  */
 function createDispatcher(proxyAddr, maxRedirections = 10) {
   const proxy = handleProxyAddr(proxyAddr);
+  const cacheKey = `${proxy || ''}|${maxRedirections}`;
+  const cached = dispatcherCache.get(cacheKey);
+  if (cached) return cached;
+
   const agent = proxy
-    ? new ProxyAgent({ uri: proxy, connect: { rejectUnauthorized: false } })
-    : new Agent({ connect: { rejectUnauthorized: false } });
-  if (maxRedirections > 0) {
-    return agent.compose(interceptors.redirect({ maxRedirections }));
-  }
-  return agent;
+    ? new ProxyAgent({ uri: proxy, ...AGENT_OPTIONS })
+    : new Agent(AGENT_OPTIONS);
+  const dispatcher = maxRedirections > 0
+    ? agent.compose(interceptors.redirect({ maxRedirections }))
+    : agent;
+
+  dispatcherCache.set(cacheKey, dispatcher);
+  return dispatcher;
 }
 
 /**

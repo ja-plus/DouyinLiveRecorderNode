@@ -25,8 +25,10 @@ const runningList = [];
 let errorCount = 0;
 let monitoring = 0;
 let exitRecording = false;
-let urlComments = [];
-let urlFileList = [];
+// 每路录制线程逐秒轮询查询 URL 状态，使用 Set 保证 O(1) 查找，
+// 避免监控路数多时每秒重复线性扫描数组
+let urlComments = new Set();
+let urlFileList = new Set();
 let firstStart = true;
 
 // ============ Platform Registry ============
@@ -125,7 +127,7 @@ async function startRecord(urlData, countVariable) {
       while (true) {
         try {
           // 每次检测前先响应 URL_config.ini 的变化（被注释或被删除则退出本线程）
-          if (urlComments.includes(recordUrl) || !urlFileList.includes(recordUrl)) {
+          if (urlComments.has(recordUrl) || !urlFileList.has(recordUrl)) {
             printColored(`[${recordName}]已被注释或删除,本条线程将会退出`, Color.YELLOW);
             clearRecordInfo(recordName, recordUrl);
             return;
@@ -171,7 +173,7 @@ async function startRecord(urlData, countVariable) {
             anchorName = cleanName(anchorName, settings.cleanEmoji);
             recordName = `序号${countVariable} ${anchorName}`;
 
-            if (recordUrl && urlComments.includes(recordUrl)) {
+            if (recordUrl && urlComments.has(recordUrl)) {
               console.log(`[${anchorName}]已被注释,本条线程将会退出`);
               clearRecordInfo(recordName, recordUrl);
               return;
@@ -271,7 +273,7 @@ async function startRecord(urlData, countVariable) {
               const { stopped } = await runRecording(ffmpegCmd, {
                 recordName,
                 recordUrl,
-                onStop: () => urlComments.includes(recordUrl) || !urlFileList.includes(recordUrl) || exitRecording
+                onStop: () => urlComments.has(recordUrl) || !urlFileList.has(recordUrl) || exitRecording
               });
 
               recording.delete(recordName);
@@ -309,7 +311,7 @@ async function startRecord(urlData, countVariable) {
 
         // 逐秒等待，期间发现 URL 被注释/删除或程序退出时立即中断等待
         for (let x = waitTime; x > 0; x--) {
-          if (urlComments.includes(recordUrl) || !urlFileList.includes(recordUrl) || exitRecording) break;
+          if (urlComments.has(recordUrl) || !urlFileList.has(recordUrl) || exitRecording) break;
           if (settings.loopTime) process.stdout.write(`\r循环等待${x}秒 `);
           await sleep(1000);
         }
@@ -329,7 +331,7 @@ let globalProxy = false;
 // 与 Python 版 clear_record_info 对应：线程退出时清理监测状态，使取消注释后能重新监测
 function clearRecordInfo(recordName, recordUrl) {
   recording.delete(recordName);
-  if (urlComments.includes(recordUrl) || !urlFileList.includes(recordUrl)) {
+  if (urlComments.has(recordUrl) || !urlFileList.has(recordUrl)) {
     const idx = runningList.indexOf(recordUrl);
     if (idx > -1) {
       runningList.splice(idx, 1);
@@ -386,11 +388,11 @@ function parseUrlConfig() {
 
   if (!fs.existsSync(URL_CONFIG_FILE)) return urlTuplesList;
 
-  urlComments = [];
-  urlFileList = [];
+  urlComments = new Set();
+  urlFileList = new Set();
   const content = fs.readFileSync(URL_CONFIG_FILE, 'utf-8').replace(/^\uFEFF/, '');
   const lines = content.split('\n');
-  const urlLineList = [];
+  const urlLineList = new Set();
 
   for (const originLine of lines) {
     let line = originLine.trim();
@@ -421,14 +423,14 @@ function parseUrlConfig() {
 
     if (!['原画', '蓝光', '超清', '高清', '标清', '流畅'].includes(quality)) quality = '原画';
     if (!url) continue;
-    if (urlLineList.includes(url)) continue;
-    urlLineList.push(url);
+    if (urlLineList.has(url)) continue;
+    urlLineList.add(url);
 
     if (!url.includes('://')) url = 'https://' + url;
 
-    urlFileList.push(url);
+    urlFileList.add(url);
     if (isCommentLine) {
-      urlComments.push(url);
+      urlComments.add(url);
     } else {
       urlTuplesList.push([quality, url, name]);
     }
