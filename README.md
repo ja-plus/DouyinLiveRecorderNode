@@ -2,17 +2,10 @@
 
 基于 Node.js 实现的直播录制工具，源于 [ihmily/DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder) 的 Node.js 移植版本。支持多平台直播的循环监测与自动录制，并内置 Web 配置管理台。
 
-## 功能特性
+## 较原版新增的功能特性
 
-- 🎥 多路直播同时监测与录制，开播自动录制、关播自动停止
-- 📺 支持多平台：抖音、TikTok、快手、虎牙、斗鱼、YY、B站、自定义直播流
-- 🎬 多种保存格式：TS / MKV / FLV / MP4 / MP3音频 / M4A音频
-- ✂️ 支持按时长分段录制，录制完成后可自动转 MP4（可选重编码 H264）
-- ⚡ 实验性 Node 直录模式：FLV 直连流不经 ffmpeg 直接落盘
-- 🔔 开播/关播消息推送：钉钉、微信、Bark、Telegram、SMTP 邮件、ntfy、pushplus
-- 🌐 支持代理录制海外平台（TikTok 等），自动检测系统代理
 - 🖥️ 内置 Web 配置管理台（Vue 3 + Fastify），可在线管理录制地址与配置
-- 🔄 配置热更新：`config.ini` 与 `URL_config.ini` 修改实时生效，无需重启
+- ⚡ 实验性 Node 直录模式：FLV 直连流不经 ffmpeg 直接落盘
 
 ## 环境要求
 
@@ -70,6 +63,20 @@ http://127.0.0.1:5000
 - 录制地址的增删改、注释/取消注释
 - `config.ini` 各项配置的可视化编辑
 - 查看与回放已录制的视频
+
+### 界面预览
+
+**直播间管理**：管理 `URL_config.ini` 中的录制地址，支持批量删除/开启/关闭，单条启用或注释
+
+![直播间管理](screenshots/config-manager-1.png)
+
+**已录制文件**：查看每个直播间的录制文件列表，支持在线观看回放
+
+![已录制文件](screenshots/config-manager-2.png)
+
+**系统配置**：按分区可视化编辑 `config.ini` 全部配置项
+
+![系统配置](screenshots/config-manager-3.png)
 
 也可以单独启动管理台（不启动录制）：
 
