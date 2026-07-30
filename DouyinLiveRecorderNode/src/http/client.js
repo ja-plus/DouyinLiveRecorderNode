@@ -1,22 +1,22 @@
 /**
  * HTTP client module - using undici for high-performance HTTP requests with proxy support
  */
-import { request, Agent } from 'undici';
-import { HttpsProxyAgent } from 'hpagent';
+import { request, Agent, ProxyAgent, interceptors } from 'undici';
 import { handleProxyAddr } from '../utils/index.js';
 
 /**
- * Create a proxy dispatcher for undici
+ * Create a dispatcher for undici.
+ * undici v7 移除了 request() 的 maxRedirections 选项，需通过 redirect 拦截器实现重定向跟随
  */
-function createProxyDispatcher(proxyAddr) {
-  if (!proxyAddr) return undefined;
+function createDispatcher(proxyAddr, maxRedirections = 10) {
   const proxy = handleProxyAddr(proxyAddr);
-  if (!proxy) return undefined;
-  return new Agent({
-    connect: {
-      rejectUnauthorized: false
-    }
-  });
+  const agent = proxy
+    ? new ProxyAgent({ uri: proxy, connect: { rejectUnauthorized: false } })
+    : new Agent({ connect: { rejectUnauthorized: false } });
+  if (maxRedirections > 0) {
+    return agent.compose(interceptors.redirect({ maxRedirections }));
+  }
+  return agent;
 }
 
 /**
@@ -38,9 +38,10 @@ export async function asyncReq({
     const options = {
       method,
       headers: { ...headers },
-      maxRedirections: 10,
       headersTimeout: timeout,
       bodyTimeout: timeout,
+      // 取跳转地址时不跟随重定向，直接读取 location 头
+      dispatcher: createDispatcher(proxyAddr, redirectUrl ? 0 : 10),
     };
 
     if (body) {
@@ -54,17 +55,15 @@ export async function asyncReq({
       options.headers['content-type'] = 'application/json';
     }
 
-    const proxy = handleProxyAddr(proxyAddr);
-    if (proxy) {
-      options.dispatcher = createProxyDispatcher(proxy);
-    }
-
     const response = await request(url, options);
-    const text = await response.body.text();
 
     if (redirectUrl) {
-      return response.headers.location || url;
+      await response.body.dump();
+      const location = response.headers.location;
+      return (Array.isArray(location) ? location[0] : location) || url;
     }
+
+    const text = await response.body.text();
 
     if (returnCookies) {
       const setCookies = response.headers['set-cookie'] || [];
@@ -91,15 +90,10 @@ export async function getResponseStatus(url, proxyAddr = null, headers = {}, tim
     const options = {
       method: 'HEAD',
       headers,
-      maxRedirections: 5,
       headersTimeout: timeout,
       bodyTimeout: timeout,
+      dispatcher: createDispatcher(proxyAddr, 5),
     };
-
-    const proxy = handleProxyAddr(proxyAddr);
-    if (proxy) {
-      options.dispatcher = createProxyDispatcher(proxy);
-    }
 
     const response = await request(url, options);
     await response.body.dump();
