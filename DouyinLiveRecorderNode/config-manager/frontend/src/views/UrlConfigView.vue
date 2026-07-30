@@ -55,6 +55,9 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 已录制文件弹窗 -->
+    <RecordingsModal v-model:visible="recordingsVisible" :anchor-name="recordingsAnchor" />
   </div>
 </template>
 
@@ -77,6 +80,7 @@ import { Message, Checkbox } from "@arco-design/web-vue";
 import "@arco-design/web-vue/es/checkbox/style/css.js";
 import ActionCell from "../components/ActionCell.vue";
 import QualityCell from "../components/QualityCell.vue";
+import RecordingsModal from "../components/RecordingsModal.vue";
 import { isDark } from "../composables/useTheme";
 import {
   CONFIG_ACTIONS_KEY,
@@ -144,7 +148,7 @@ const columns: StkTableColumn<UrlRow>[] = [
     dataIndex: "_action" as never,
     align: "center",
     fixed: "right",
-    width: 90,
+    width: 130,
     customCell: markRaw(ActionCell),
   },
 ];
@@ -244,8 +248,22 @@ function onRowOrderChange(
   rows.value = arr;
 }
 
+// 已录制文件弹窗状态
+const recordingsVisible = ref(false);
+const recordingsAnchor = ref("");
+
+function openRecordings(row: UrlRow): void {
+  const name = row.name.trim();
+  if (!name) {
+    Message.warning("该记录暂无主播名，无法定位录制文件");
+    return;
+  }
+  recordingsAnchor.value = name;
+  recordingsVisible.value = true;
+}
+
 // 提供给单元格组件调用的操作方法
-provide<ConfigActions>(CONFIG_ACTIONS_KEY, { deleteRow });
+provide<ConfigActions>(CONFIG_ACTIONS_KEY, { deleteRow, openRecordings });
 // 提供给画质单元格：可选画质列表 + 默认画质
 provide(QUALITY_OPTIONS_KEY, qualityOptions);
 provide(DEFAULT_QUALITY_KEY, defaultQuality);

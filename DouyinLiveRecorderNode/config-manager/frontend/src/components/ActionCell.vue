@@ -7,13 +7,26 @@
       <template #checked>启用</template>
       <template #unchecked>注释</template>
     </a-switch>
+    <a-tooltip content="查看已录制文件">
+      <a-button size="mini" type="text" @click="actions?.openRecordings(row)">
+        <template #icon><icon-video-camera /></template>
+      </a-button>
+    </a-tooltip>
   </div>
 </template>
 
 <script setup lang="ts">
-import { type CellProps, type UrlRow } from '../types';
+import { inject } from 'vue';
+import {
+  CONFIG_ACTIONS_KEY,
+  type CellProps,
+  type ConfigActions,
+  type UrlRow,
+} from '../types';
 
 const props = defineProps<CellProps<UrlRow>>();
+
+const actions = inject<ConfigActions | null>(CONFIG_ACTIONS_KEY, null);
 
 function onToggle(val: string | number | boolean): void {
   // true = 移除注释（启用），false = 注释掉
@@ -26,7 +39,7 @@ function onToggle(val: string | number | boolean): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   height: 100%;
 }
 </style>

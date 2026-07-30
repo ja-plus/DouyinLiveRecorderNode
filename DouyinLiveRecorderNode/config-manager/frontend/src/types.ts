@@ -69,9 +69,48 @@ export interface CellProps<T extends object> {
 /** 通过 provide/inject 提供给单元格组件的操作方法 */
 export interface ConfigActions {
   deleteRow: (id: number) => void;
+  /** 打开某主播的已录制文件弹窗 */
+  openRecordings: (row: UrlRow) => void;
 }
 
 export const CONFIG_ACTIONS_KEY = 'configActions';
+
+/** 一条已录制文件记录 */
+export interface RecordingItem {
+  /** 前端生成的唯一 id，仅用于 rowKey */
+  id: number;
+  /** 相对录制根目录的路径（/ 分隔），用于拼播放地址 */
+  file: string;
+  /** 文件名 */
+  name: string;
+  /** 扩展名（不含点），如 flv/ts/mp4 */
+  ext: string;
+  /** 文件大小（字节） */
+  size: number;
+  /** 修改时间（毫秒时间戳） */
+  mtime: number;
+}
+
+export interface ApiRecordingsResp {
+  success: boolean;
+  error?: string;
+  items?: Omit<RecordingItem, 'id'>[];
+}
+
+/** 录像列表表格行：接口数据 + 展示用的格式化字段 */
+export interface RecordingRow extends RecordingItem {
+  /** 人类可读的文件大小 */
+  sizeText: string;
+  /** 本地时间字符串 */
+  timeText: string;
+}
+
+/** 通过 provide/inject 提供给录像列表单元格的操作方法 */
+export interface RecordingActions {
+  play: (row: RecordingItem) => void;
+}
+
+export const RECORDING_ACTIONS_KEY = 'recordingActions';
 
 /** 画质选项（与后端 QUALITIES 保持一致，作为兜底） */
 export const QUALITY_OPTIONS = ['原画', '蓝光', '超清', '高清', '标清', '流畅'];
