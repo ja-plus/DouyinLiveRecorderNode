@@ -48,6 +48,11 @@
           <a-input v-model="addForm.url" placeholder="例如：https://live.douyin.com/123456789" allow-clear
             @press-enter="handleAddConfirmByEnter" />
         </a-form-item>
+        <a-form-item field="quality" label="画质">
+          <a-select v-model="addForm.quality" :placeholder="`默认(${defaultQuality})`" allow-clear>
+            <a-option v-for="q in qualityOptions" :key="q" :value="q">{{ q }}</a-option>
+          </a-select>
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -71,9 +76,13 @@ import { Message, Checkbox } from "@arco-design/web-vue";
 // Checkbox 在这里是手动 import（非模板中使用），ArcoResolver 不会自动引入其样式
 import "@arco-design/web-vue/es/checkbox/style/css.js";
 import ActionCell from "../components/ActionCell.vue";
+import QualityCell from "../components/QualityCell.vue";
 import { isDark } from "../composables/useTheme";
 import {
   CONFIG_ACTIONS_KEY,
+  QUALITY_OPTIONS,
+  QUALITY_OPTIONS_KEY,
+  DEFAULT_QUALITY_KEY,
   type ApiGetConfigResp,
   type ApiSaveConfigResp,
   type ConfigActions,
@@ -87,9 +96,13 @@ const rows = ref<UrlRow[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 
+// 画质选项与默认画质（来自后端，默认画质取自 config.ini）
+const qualityOptions = ref<string[]>(QUALITY_OPTIONS);
+const defaultQuality = ref("原画");
+
 // 新增弹窗状态
 const addModalVisible = ref(false);
-const addForm = reactive({ url: "", name: "" });
+const addForm = reactive({ url: "", name: "", quality: "" });
 
 const enabledCount = computed(() => rows.value.filter((r) => r.enabled).length);
 const checkedCount = computed(() => rows.value.filter((r) => r.checked).length);
@@ -119,6 +132,12 @@ const columns: StkTableColumn<UrlRow>[] = [
     align: "center",
   },
   { title: "主播", dataIndex: "name", width: 100 },
+  {
+    title: "画质",
+    dataIndex: "quality",
+    width: 130,
+    customCell: markRaw(QualityCell),
+  },
   { title: "URL", dataIndex: "url", minWidth: 300 },
   {
     title: "操作",
@@ -136,6 +155,10 @@ async function load(): Promise<void> {
     const res = await fetch(API);
     const data: ApiGetConfigResp = await res.json();
     if (!data.success) throw new Error(data.error || "未知错误");
+    if (Array.isArray(data.qualities) && data.qualities.length) {
+      qualityOptions.value = data.qualities;
+    }
+    defaultQuality.value = data.defaultQuality || "原画";
     rows.value = (data.items || []).map((it) => ({
       id: uid++,
       enabled: !!it.enabled,
@@ -156,6 +179,7 @@ async function load(): Promise<void> {
 function openAddModal(): void {
   addForm.url = "";
   addForm.name = "";
+  addForm.quality = "";
   addModalVisible.value = true;
 }
 
@@ -170,7 +194,7 @@ function handleAddOk(): boolean {
     {
       id: uid++,
       enabled: true,
-      quality: "",
+      quality: addForm.quality || "",
       url,
       name: addForm.name.trim(),
       checked: false,
@@ -222,6 +246,9 @@ function onRowOrderChange(
 
 // 提供给单元格组件调用的操作方法
 provide<ConfigActions>(CONFIG_ACTIONS_KEY, { deleteRow });
+// 提供给画质单元格：可选画质列表 + 默认画质
+provide(QUALITY_OPTIONS_KEY, qualityOptions);
+provide(DEFAULT_QUALITY_KEY, defaultQuality);
 
 async function save(): Promise<void> {
   const emptyUrl = rows.value.some((r) => !r.url.trim());

@@ -27,6 +27,10 @@ export interface ApiGetConfigResp {
   error?: string;
   path?: string;
   items?: ApiConfigItem[];
+  /** 可选画质列表（由后端下发） */
+  qualities?: string[];
+  /** config.ini 中的默认画质 */
+  defaultQuality?: string;
 }
 
 export interface ApiSaveConfigResp {
@@ -68,3 +72,12 @@ export interface ConfigActions {
 }
 
 export const CONFIG_ACTIONS_KEY = 'configActions';
+
+/** 画质选项（与后端 QUALITIES 保持一致，作为兜底） */
+export const QUALITY_OPTIONS = ['原画', '蓝光', '超清', '高清', '标清', '流畅'];
+
+/** provide/inject：画质选项列表（Ref<string[]>） */
+export const QUALITY_OPTIONS_KEY = 'qualityOptions';
+
+/** provide/inject：config.ini 的默认画质（Ref<string>） */
+export const DEFAULT_QUALITY_KEY = 'defaultQuality';

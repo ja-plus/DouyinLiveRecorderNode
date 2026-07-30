@@ -97,6 +97,22 @@ function parseAppConfig(text) {
   return sections;
 }
 
+// 从 config.ini 读取默认画质（[录制设置] -> 原画|超清|高清|标清|流畅），读取失败则回退为 原画
+function getDefaultQuality() {
+  try {
+    if (fs.existsSync(APP_CONFIG_PATH)) {
+      const sections = parseAppConfig(fs.readFileSync(APP_CONFIG_PATH, ENCODING));
+      const sec = sections.find(s => s.name === '录制设置');
+      const item = sec?.items.find(it => it.key === '原画|超清|高清|标清|流畅');
+      const v = (item?.value || '').trim();
+      if (QUALITIES.includes(v)) return v;
+    }
+  } catch {
+    // 读取失败时使用兜底默认值
+  }
+  return '原画';
+}
+
 function updateAppConfig(text, sections) {
   const newValues = {};
   for (const sec of sections || []) {
@@ -161,7 +177,13 @@ export async function startServer({ host = '0.0.0.0', port = 5000 } = {}) {
       if (fs.existsSync(CONFIG_PATH)) {
         text = fs.readFileSync(CONFIG_PATH, ENCODING);
       }
-      return { success: true, path: CONFIG_PATH, items: parseIni(text) };
+      return {
+        success: true,
+        path: CONFIG_PATH,
+        items: parseIni(text),
+        qualities: QUALITIES,
+        defaultQuality: getDefaultQuality(),
+      };
     } catch (e) {
       reply.code(500);
       return { success: false, error: e.message };

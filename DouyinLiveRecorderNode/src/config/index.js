@@ -177,6 +177,8 @@ export function loadAppSettings() {
     loopTime: parseBool(readConfigValue(config, '录制设置', '是否显示循环秒数', '否')),
     showUrl: parseBool(readConfigValue(config, '录制设置', '是否显示直播源地址', '否')),
     splitVideoByTime: parseBool(readConfigValue(config, '录制设置', '分段录制是否开启', '是'), true),
+    // 实验性：FLV 流不经 ffmpeg，由 worker 线程 HTTP 拉流直接落盘（默认关闭，走 ffmpeg）
+    directRecordFlv: parseBool(readConfigValue(config, '录制设置', '启用node直录flv(实验性)(是/否)', '否')),
     enableHttpsRecording: parseBool(readConfigValue(config, '录制设置', '是否强制启用https录制', '否')),
     diskSpaceLimit: parseFloat(readConfigValue(config, '录制设置', '录制空间剩余阈值(gb)', '1.0')),
     splitTime: String(readConfigValue(config, '录制设置', '视频分段时间(秒)', '1800')),

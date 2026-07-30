@@ -10,6 +10,7 @@ import { removeDuplicateLines, cleanName, getQualityCode, sleep, checkDiskCapaci
 import { printColored, Color } from './src/utils/color.js';
 import { ProxyDetector } from './src/utils/proxy.js';
 import { checkFfmpeg, buildFfmpegCommand, runRecording, convertsMp4 } from './src/recorder/index.js';
+import { runDirectRecording } from './src/recorder/direct.js';
 import { pushMessage } from './src/push/index.js';
 import { DouyinPlatform } from './src/platforms/douyin.js';
 import { BilibiliPlatform, HuyaPlatform, KuaishouPlatform, DouyuPlatform, YYPlatform, TiktokPlatform, CustomStreamPlatform } from './src/platforms/index.js';
@@ -239,8 +240,17 @@ async function startRecord(urlData, countVariable) {
                 recordSaveType = recordSaveType.includes('M4A') ? 'M4A' : 'MP3';
               }
 
-              // Build filename
-              const ext = getExtension(recordSaveType);
+              // Node 直录模式（实验性）：仅 FLV 直连流且无需分段/音频提取时启用，
+              // 其余情况一律回退旧的 ffmpeg 方式
+              const isAudioSave = recordSaveType === 'MP3' || recordSaveType === 'M4A';
+              const isFlvStream = /\.flv($|\?)/.test(realUrl);
+              const useDirectRecord = settings.directRecordFlv && isFlvStream && !isAudioSave && !settings.splitVideoByTime;
+              if (settings.directRecordFlv && isFlvStream && !isAudioSave && settings.splitVideoByTime) {
+                logger.info(`${recordName} 分段录制已开启，直录模式暂不支持分段，本次回退ffmpeg录制`);
+              }
+
+              // Build filename（直录模式不经转封装，固定以原始 flv 容器落盘）
+              const ext = useDirectRecord ? 'flv' : getExtension(recordSaveType);
               const nameFormat = settings.splitVideoByTime ? '_%03d' : '';
               const filename = `${anchorName}_${titleInName}${now}${nameFormat}.${ext}`;
               const saveFilePath = `${fullPath}/${filename}`;
@@ -252,29 +262,39 @@ async function startRecord(urlData, countVariable) {
                 logger.info(`${platformName} | ${anchorName} | 直播源地址: ${realUrl}`);
               }
 
-              // Build and run ffmpeg command
-              const isOverseas = settings.enableProxyPlatformList.some(p => p && recordUrl.includes(p.trim()));
-              const ffmpegCmd = buildFfmpegCommand({
-                sourceUrl: realUrl,
-                saveFilePath,
-                proxyAddr: proxyAddress,
-                platform: platformName,
-                splitVideoByTime: settings.splitVideoByTime,
-                splitTime: settings.splitTime,
-                videoSaveType: recordSaveType,
-                recordUrl,
-                enableHttps: settings.enableHttpsRecording,
-                isOverseas
-              });
+              // Build and run recording (Node 直录 worker 或 ffmpeg 子进程)
+              const stopCheck = () => urlComments.has(recordUrl) || !urlFileList.has(recordUrl) || exitRecording;
 
               recording.add(recordName);
               recordingTimeList[recordName] = [new Date(), recordQualityZh];
 
-              const { stopped } = await runRecording(ffmpegCmd, {
-                recordName,
-                recordUrl,
-                onStop: () => urlComments.has(recordUrl) || !urlFileList.has(recordUrl) || exitRecording
-              });
+              let recordResult;
+              if (useDirectRecord) {
+                console.log(`\r${recordName} 使用Node直录模式(实验性)录制FLV流`);
+                recordResult = await runDirectRecording({
+                  sourceUrl: realUrl,
+                  saveFilePath,
+                  proxyAddr: proxyAddress,
+                  recordName,
+                  onStop: stopCheck
+                });
+              } else {
+                const isOverseas = settings.enableProxyPlatformList.some(p => p && recordUrl.includes(p.trim()));
+                const ffmpegCmd = buildFfmpegCommand({
+                  sourceUrl: realUrl,
+                  saveFilePath,
+                  proxyAddr: proxyAddress,
+                  platform: platformName,
+                  splitVideoByTime: settings.splitVideoByTime,
+                  splitTime: settings.splitTime,
+                  videoSaveType: recordSaveType,
+                  recordUrl,
+                  enableHttps: settings.enableHttpsRecording,
+                  isOverseas
+                });
+                recordResult = await runRecording(ffmpegCmd, { recordName, recordUrl, onStop: stopCheck });
+              }
+              const { stopped } = recordResult;
 
               recording.delete(recordName);
 
@@ -283,9 +303,15 @@ async function startRecord(urlData, countVariable) {
                 return;
               }
 
-              // Post-recording conversion
-              if (settings.convertsToMp4 && recordSaveType === 'TS') {
-                convertsMp4(saveFilePath, settings.deleteOriginFile, settings.convertsToH264).catch(() => {});
+              // Post-recording conversion（直录产出为 flv，除用户明确选择 FLV 格式外均转 MP4）
+              const needConvert = useDirectRecord
+                ? (settings.convertsToMp4 && recordSaveType !== 'FLV')
+                : (settings.convertsToMp4 && recordSaveType === 'TS');
+              if (needConvert) {
+                const convertFiles = useDirectRecord && recordResult.files?.length ? recordResult.files : [saveFilePath];
+                for (const f of convertFiles) {
+                  convertsMp4(f, settings.deleteOriginFile, settings.convertsToH264).catch(() => {});
+                }
               }
 
               recordFinished = true;
