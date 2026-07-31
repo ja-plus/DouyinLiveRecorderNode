@@ -6,13 +6,31 @@
 
     <div class="sub-bar">
       <div class="batch-actions">
-        <a-popconfirm content="确认删除选中的记录？" type="warning" ok-text="删除" cancel-text="取消" @ok="deleteChecked">
-          <a-button size="small" status="danger" :disabled="checkedCount === 0">删除</a-button>
+        <a-popconfirm
+          content="确认删除选中的记录？"
+          type="warning"
+          ok-text="删除"
+          cancel-text="取消"
+          @ok="deleteChecked"
+        >
+          <a-button size="small" status="danger" :disabled="checkedCount === 0"
+            >删除</a-button
+          >
         </a-popconfirm>
-        <a-button size="small" type="primary" :disabled="checkedCount === 0"
-          @click="setCheckedEnabled(true)">开启</a-button>
-        <a-button size="small" type="outline" :disabled="checkedCount === 0"
-          @click="setCheckedEnabled(false)">关闭</a-button>
+        <a-button
+          size="small"
+          type="primary"
+          :disabled="checkedCount === 0"
+          @click="setCheckedEnabled(true)"
+          >开启</a-button
+        >
+        <a-button
+          size="small"
+          type="outline"
+          :disabled="checkedCount === 0"
+          @click="setCheckedEnabled(false)"
+          >关闭</a-button
+        >
       </div>
       <div class="toolbar">
         <a-button :loading="loading" @click="load">
@@ -22,54 +40,90 @@
           <template #icon><icon-plus /></template>
         </a-button>
         <a-button type="primary" :loading="saving" @click="save">
-          <template #icon><icon-save /><span v-if="dirty" class="dirty-tip">●</span></template>
+          <template #icon
+            ><icon-save /><span v-if="dirty" class="dirty-tip"
+              >●</span
+            ></template
+          >
         </a-button>
       </div>
     </div>
 
-    <StkTable class="table" row-key="id" :theme="isDark ? 'dark' : 'light'" :columns="columns" :data-source="rows"
-      :row-height="48" no-data-full fixed-col-shadow bordered stripe virtual @row-order-change="onRowOrderChange">
+    <StkTable
+      class="table"
+      row-key="id"
+      :theme="isDark ? 'dark' : 'light'"
+      :columns="columns"
+      :data-source="rows"
+      :row-height="48"
+      no-data-full
+      fixed-col-shadow
+      bordered
+      stripe
+      virtual
+      @row-order-change="onRowOrderChange"
+    >
       <template #empty>
         <div>
-          暂无直播间记录，<a-button size="small" type="text" @click="openAddModal">点击新增</a-button>
+          暂无直播间记录，<a-button
+            size="small"
+            type="text"
+            @click="openAddModal"
+            >点击新增</a-button
+          >
         </div>
       </template>
     </StkTable>
     <div class="footer-bar">
-      <span class="footer-bar-text">已选 {{ checkedCount }} 条，共 {{ rows.length }} 条，启用
-        {{ enabledCount }} 条，注释 {{ rows.length - enabledCount }} 条</span>
+      <span class="footer-bar-text"
+        >已选 {{ checkedCount }} 条，共 {{ rows.length }} 条，启用
+        {{ enabledCount }} 条，注释 {{ rows.length - enabledCount }} 条</span
+      >
     </div>
 
     <!-- 新增记录弹窗 -->
-    <a-modal v-model:visible="addModalVisible" title="新增直播间" ok-text="保存" cancel-text="取消" modal-class="add-room-modal"
-      @before-ok="handleAddOk" @cancel="addForm.url = ''">
+    <a-modal
+      v-model:visible="addModalVisible"
+      title="新增直播间"
+      ok-text="保存"
+      cancel-text="取消"
+      modal-class="add-room-modal"
+      @before-ok="handleAddOk"
+      @cancel="addForm.url = ''"
+    >
       <a-form :model="addForm" layout="vertical">
         <a-form-item field="url" label="直播间URL" required>
-          <a-input v-model="addForm.url" placeholder="例如：https://live.douyin.com/123456789" allow-clear
-            @press-enter="handleAddConfirmByEnter" />
+          <a-input
+            v-model="addForm.url"
+            placeholder="例如：https://live.douyin.com/123456789"
+            allow-clear
+            @press-enter="handleAddConfirmByEnter"
+          />
         </a-form-item>
         <a-form-item field="quality" label="画质">
-          <a-select v-model="addForm.quality" :placeholder="`默认(${defaultQuality})`" allow-clear>
-            <a-option v-for="q in qualityOptions" :key="q" :value="q">{{ q }}</a-option>
+          <a-select
+            v-model="addForm.quality"
+            :placeholder="`默认(${defaultQuality})`"
+            allow-clear
+          >
+            <a-option v-for="q in qualityOptions" :key="q" :value="q">{{
+              q
+            }}</a-option>
           </a-select>
         </a-form-item>
       </a-form>
     </a-modal>
 
     <!-- 已录制文件弹窗 -->
-    <RecordingsModal v-model:visible="recordingsVisible" :anchor-name="recordingsAnchor" />
+    <RecordingsModal
+      v-model:visible="recordingsVisible"
+      :anchor-name="recordingsAnchor"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  reactive,
-  computed,
-  onMounted,
-  provide,
-  markRaw,
-} from "vue";
+import { ref, reactive, computed, onMounted, provide, markRaw } from "vue";
 import {
   StkTable,
   createCheckboxCell,
@@ -142,7 +196,7 @@ const columns: StkTableColumn<UrlRow>[] = [
     width: 130,
     customCell: markRaw(QualityCell),
   },
-  { title: "URL", dataIndex: "url", minWidth: 300 },
+  { title: "URL", dataIndex: "url" },
   {
     title: "操作",
     dataIndex: "_action" as never,
