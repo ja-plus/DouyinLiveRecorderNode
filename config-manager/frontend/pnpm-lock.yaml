@@ -12,8 +12,8 @@ dependencies:
     specifier: ^1.8.0
     version: 1.8.0
   stk-table-vue:
-    specifier: ^1.0.1
-    version: 1.0.1
+    specifier: ^1.0.2
+    version: 1.0.2
   vue:
     specifier: ^3.5.13
     version: 3.5.40(typescript@5.9.3)
@@ -1147,8 +1147,8 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
-  /stk-table-vue@1.0.1:
-    resolution: {integrity: sha512-OkpbatiHJG6HUqZ6pbkxC4EdxQRqQG7zKeKysXYdJZ+RkKsyfj5k08ub6mJAG5bhGiOZFVOhB3A66q3j5zQWVg==}
+  /stk-table-vue@1.0.2:
+    resolution: {integrity: sha512-EiXb378gbsw1dA1LHxNsRw4te8tjH5Pbf4edfHoQ93nUh+kc/kZhLTXSpmsFIVO+zNklU+zz+KQ3jUSA/C8vlw==}
     dev: false
 
   /tinyglobby@0.2.17:
