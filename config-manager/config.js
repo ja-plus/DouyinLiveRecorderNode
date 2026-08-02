@@ -18,8 +18,8 @@
  * 配置变更后，重启 npm start / node config-manager/server.js 生效。
  */
 export default {
-  enableHttp2: true,
-  host: '127.0.0.1',
+  enableHttp2: false,
+  host: '0.0.0.0',
   port: 5000,
   certPath: "config/cert.pem",
   keyPath: "config/key.pem",
