@@ -8,7 +8,8 @@ import fastifyStatic from '@fastify/static';
 import fastifyCors from '@fastify/cors';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import net from 'node:net';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -18,6 +19,73 @@ const APP_CONFIG_PATH = path.join(CONFIG_DIR, 'config.ini');
 const ENCODING = 'utf-8';
 const QUALITIES = ['原画', '蓝光', '超清', '高清', '标清', '流畅'];
 const VIDEO_EXTS = new Set(['.flv', '.ts', '.mp4', '.mkv', '.mp3', '.m4a']);
+const OWN_CONFIG_PATH = path.join(__dirname, 'config.js');
+
+// ============ Server Settings (from config-manager/config.js) ============
+const DEFAULT_SETTINGS = {
+  enableHttp2: false,
+  host: '127.0.0.1',
+  port: 5000,
+  certPath: '',
+  keyPath: '',
+};
+
+async function getServerSettings() {
+  const cfg = { ...DEFAULT_SETTINGS };
+  try {
+    const fileUrl = pathToFileURL(OWN_CONFIG_PATH).href;
+    const mod = await import(fileUrl + '?t=' + Date.now());
+    const obj = mod?.default || {};
+    if (typeof obj !== 'object') return cfg;
+    if (typeof obj.enableHttp2 === 'boolean') cfg.enableHttp2 = obj.enableHttp2;
+    else if (obj.enableHttp2 === '是' || obj.enableHttp2 === 'true' || obj.enableHttp2 === 1 || obj.enableHttp2 === '1') cfg.enableHttp2 = true;
+    if (typeof obj.host === 'string' && obj.host.trim()) cfg.host = obj.host.trim();
+    const portVal = parseInt(obj.port);
+    if (!Number.isNaN(portVal) && portVal > 0 && portVal < 65536) cfg.port = portVal;
+    if (typeof obj.certPath === 'string') {
+      const v = obj.certPath.trim();
+      if (v) cfg.certPath = path.isAbsolute(v) ? v : path.resolve(ROOT_DIR, v);
+    }
+    if (typeof obj.keyPath === 'string') {
+      const v = obj.keyPath.trim();
+      if (v) cfg.keyPath = path.isAbsolute(v) ? v : path.resolve(ROOT_DIR, v);
+    }
+  } catch {
+    // 无配置文件或解析失败时使用默认值
+  }
+  return cfg;
+}
+
+function loadTlsOptions({ certPath, keyPath }) {
+  const hasCert = certPath && fs.existsSync(certPath);
+  const hasKey = keyPath && fs.existsSync(keyPath);
+  if (hasCert && hasKey) {
+    return {
+      cert: fs.readFileSync(certPath),
+      key: fs.readFileSync(keyPath),
+      allowHTTP1: true, // ALPN 协商失败时回退 HTTP/1.1
+      // 注意：不显式设置 ALPNProtocols，由 Node.js http2.createSecureServer 自动管理
+      // 显式设置可能导致部分浏览器（Chrome）TLS 握手异常
+    };
+  }
+  return null;
+}
+
+/** 启动前检测 host:port 是否已被其他进程占用；若被占，返回 { ok:false, owner:'unknown' } */
+function checkPortAvailable(host, port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', (e) => {
+      try { server.close(); } catch {}
+      if (e?.code === 'EADDRINUSE') resolve({ ok: false, reason: 'EADDRINUSE' });
+      else resolve({ ok: false, reason: e?.code || String(e?.message || e) });
+    });
+    server.listen({ host, port, exclusive: true }, () => {
+      server.close(() => resolve({ ok: true }));
+    });
+  });
+}
 
 // ============ URL Config Parsing ============
 function parseContent(content) {
@@ -217,11 +285,45 @@ function updateAppConfig(text, sections) {
 // ============ Fastify Server ============
 let app = null;
 
-export async function startServer({ host = '0.0.0.0', port = 5000 } = {}) {
-  app = Fastify({
+export async function startServer(options = {}) {
+  const fileSettings = await getServerSettings();
+  const finalHost = options.host ?? fileSettings.host;
+  const finalPort = options.port ?? fileSettings.port;
+  const wantHttp2 = options.http2 ?? fileSettings.enableHttp2;
+  const certPath = options.certPath ?? fileSettings.certPath;
+  const keyPath = options.keyPath ?? fileSettings.keyPath;
+  const tlsOpts = loadTlsOptions({ certPath, keyPath });
+
+  // ---------- 端口占用预检测 ----------
+  const portCheck = await checkPortAvailable(finalHost, finalPort);
+  if (!portCheck.ok) {
+    const hint = portCheck.reason === 'EADDRINUSE'
+      ? `端口 ${finalPort} 已被其他程序占用！常见占用者：AirPlay/Windows 投屏组件、旧版残留进程。请释放端口或改 config-manager/config.js 的 port 再重启。`
+      : `端口检测失败(${portCheck.reason})：${finalHost}:${finalPort}`;
+    throw new Error(hint);
+  }
+
+  // ---------- HTTP/2 策略 ----------
+  // 浏览器端不支持明文 h2c。若用户要 HTTP/2 但没有合法 TLS 证书，
+  // 安全回退到 HTTP/1.1 明文，避免浏览器访问 https:// 时触发 ERR_SSL_PROTOCOL_ERROR
+  let enableHttp2 = !!wantHttp2;
+  let effectiveTls = tlsOpts;
+  if (wantHttp2 && !tlsOpts) {
+    enableHttp2 = false;
+    effectiveTls = null;
+    console.warn('[ConfigManager] enableHttp2=true 但未配置/找到 TLS 证书（certPath=' + (certPath || '(空)') + ', keyPath=' + (keyPath || '(空)') + '）。为避免浏览器报 ERR_SSL_PROTOCOL_ERROR，已回退为 HTTP/1.1 明文。请运行 node config-manager/gen-cert.mjs 生成证书后重启。');
+  }
+
+  const fastifyOpts = {
     logger: false,
-    http2: false,
-  });
+    http2: enableHttp2,
+  };
+
+  if (enableHttp2 && effectiveTls) {
+    fastifyOpts.https = effectiveTls;
+  }
+
+  app = Fastify(fastifyOpts);
 
   // Register CORS
   await app.register(fastifyCors, {
@@ -359,7 +461,16 @@ export async function startServer({ host = '0.0.0.0', port = 5000 } = {}) {
   }
 
   // Start listening
-  await app.listen({ host, port });
+  await app.listen({ host: finalHost, port: finalPort });
+  const protocol = (enableHttp2 && effectiveTls) ? 'https' : 'http';
+  const scheme = enableHttp2 ? 'HTTP/2' : 'HTTP/1.1';
+  app.configManagerHttpInfo = {
+    host: finalHost,
+    port: finalPort,
+    protocol,
+    scheme,
+    url: `${protocol}://${finalHost}:${finalPort}`,
+  };
   return app;
 }
 
@@ -367,8 +478,11 @@ export async function startServer({ host = '0.0.0.0', port = 5000 } = {}) {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isMain) {
   console.log(`配置文件路径: ${CONFIG_PATH}`);
-  startServer({ host: '127.0.0.1', port: 5000 })
-    .then(() => console.log('Config Manager running at http://127.0.0.1:5000'))
+  startServer()
+    .then(server => {
+      const info = server.configManagerHttpInfo;
+      console.log(`Config Manager running at ${info.url} (${info.scheme}${info.protocol === 'https' ? ' + TLS' : ''})`);
+    })
     .catch(e => {
       console.error(`Server error: ${e.message}`);
       process.exit(1);

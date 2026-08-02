@@ -472,8 +472,11 @@ function containsUrl(str) {
 async function startConfigManager() {
   try {
     const { startServer } = await import('./config-manager/server.js');
-    await startServer();
-    console.log('Web 配置管理台已启动: http://127.0.0.1:5000');
+    const server = await startServer();
+    const info = server?.configManagerHttpInfo || {};
+    const url = info.url || 'http://127.0.0.1:5000';
+    const extra = info.scheme ? `(${info.scheme}${info.protocol === 'https' ? ' + TLS' : ''})` : '';
+    console.log(`Web 配置管理台已启动: ${url} ${extra}`);
   } catch (e) {
     console.log(`Web 配置管理台启动失败（不影响录制）: ${e.message}`);
   }
