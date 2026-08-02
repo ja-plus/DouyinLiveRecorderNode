@@ -84,6 +84,83 @@ http://127.0.0.1:5000
 npm run config-manager
 ```
 
+### 启用 HTTPS / HTTP/2
+
+管理台默认以 HTTP/1.1 明文运行。如需启用 HTTP/2（浏览器要求必须搭配 TLS），编辑 `config-manager/config.js`：
+
+```js
+export default {
+  enableHttp2: true,
+  certPath: 'config/cert.pem',   // TLS 证书路径（相对项目根目录）
+  keyPath: 'config/key.pem',     // TLS 私钥路径
+};
+```
+
+#### 生成自签名证书
+
+使用系统 openssl（Git Bash / Linux / macOS 自带）：
+
+```bash
+openssl req -x509 -newkey rsa:2048 \
+  -keyout config/key.pem -out config/cert.pem \
+  -days 365 -nodes -subj "//CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+> Windows CMD/PowerShell 中 `//CN=localhost` 改为 `/CN=localhost`。
+
+生成后重启服务，使用 **https://** 访问：
+
+```
+https://127.0.0.1:5000
+```
+
+浏览器会提示"您的连接不是私密连接"（自签名证书不受信任），点击 **高级 → 继续前往** 即可正常使用。
+
+#### 信任证书（可选，消除警告）
+
+```bash
+# Windows
+certutil -addstore -user Root "config\cert.pem"
+
+# macOS
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain config/cert.pem
+
+# Linux
+sudo cp config/cert.pem /usr/local/share/ca-certificates/live-recorder.crt && sudo update-ca-certificates
+```
+
+#### 局域网访问
+
+将 `host` 改为 `'0.0.0.0'` 并重新生成包含局域网 IP 的证书：
+
+```js
+// config-manager/config.js
+host: '0.0.0.0',
+```
+
+```bash
+openssl req -x509 -newkey rsa:2048 \
+  -keyout config/key.pem -out config/cert.pem \
+  -days 365 -nodes -subj "//CN=LiveRecorder" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:192.168.1.100"
+```
+
+将 `192.168.1.100` 替换为部署机器的实际局域网 IP。同时确保 Windows 防火墙放行端口 5000：
+
+```powershell
+New-NetFirewallRule -DisplayName "ConfigManager 5000" -Direction Inbound -Port 5000 -Protocol TCP -Action Allow
+```
+
+然后从其他机器访问 `https://192.168.1.100:5000`。
+
+#### 注意事项
+
+- 浏览器不支持明文 HTTP/2（h2c），`enableHttp2: true` 时必须同时配置有效证书，否则会自动回退为 HTTP/1.1
+- 若未配置证书路径或证书文件不存在，服务会打印警告并回退为 HTTP/1.1 明文模式
+- 启用 TLS 后会自动在 `port+1`（默认 5001）开放一个 HTTP 跳转端口，访问 `http://host:5001` 会自动 301 跳转到 HTTPS，可通过 `httpPort` 配置修改或设为 `-1` 禁用
+- 配置变更后需重启服务生效
+
 ## 配置说明
 
 主配置文件为 `config/config.ini`，常用配置项：
