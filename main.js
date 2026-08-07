@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * LiveRecorder-node - Main entry point
  * Node.js implementation of DouyinLiveRecorder
@@ -16,25 +17,37 @@ import { DouyinPlatform } from './src/platforms/douyin.js';
 import { BilibiliPlatform, HuyaPlatform, KuaishouPlatform, DouyuPlatform, YYPlatform, TiktokPlatform, CustomStreamPlatform } from './src/platforms/index.js';
 import logger from './src/logger.js';
 
+/** @typedef {import('./src/types.js').AppSettings} AppSettings */
+/** @typedef {import('./src/types.js').StreamInfo} StreamInfo */
+/** @typedef {import('./src/types.js').UrlTuple} UrlTuple */
+/** @typedef {import('./src/types.js').RecordingResult} RecordingResult */
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VERSION = 'v4.0.7-node';
 
 // ============ Global State ============
+/** @type {Set<string>} */
 const recording = new Set();
+/** @type {Record<string, [Date, string]>} */
 const recordingTimeList = {};
+/** @type {string[]} */
 const runningList = [];
 let errorCount = 0;
 let monitoring = 0;
 let exitRecording = false;
 // 每路录制线程逐秒轮询查询 URL 状态，使用 Set 保证 O(1) 查找，
 // 避免监控路数多时每秒重复线性扫描数组
+/** @type {Set<string>} */
 let urlComments = new Set();
+/** @type {Set<string>} */
 let urlFileList = new Set();
 let firstStart = true;
 
 // ============ Platform Registry ============
+/** @type {import('./src/platforms/base.js').BasePlatform[]} */
 let platforms = [];
-let settings = {};
+/** @type {AppSettings} */
+let settings = /** @type {any} */ ({});
 
 function initPlatforms() {
   platforms = [
@@ -49,11 +62,16 @@ function initPlatforms() {
   ];
 }
 
+/**
+ * @param {string} url
+ * @returns {import('./src/platforms/base.js').BasePlatform | null}
+ */
 function findPlatform(url) {
   return platforms.find(p => p.match(url)) || null;
 }
 
 // ============ Display Info ============
+/** @returns {Promise<void>} */
 async function displayInfo() {
   await sleep(5000);
   while (true) {
@@ -88,12 +106,17 @@ async function displayInfo() {
         console.log('x'.repeat(60));
       }
     } catch (e) {
-      logger.error(`Display error: ${e.message}`);
+      logger.error(`Display error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
 
 // ============ Core Recording Loop ============
+/**
+ * @param {UrlTuple} urlData - [画质, 直播地址, 主播名备注]
+ * @param {number} countVariable - 监测序号
+ * @returns {Promise<void>}
+ */
 async function startRecord(urlData, countVariable) {
   let nameWrittenBack = false;
   while (true) {
@@ -263,11 +286,13 @@ async function startRecord(urlData, countVariable) {
               }
 
               // Build and run recording (Node 直录 worker 或 ffmpeg 子进程)
+              /** @returns {boolean} */
               const stopCheck = () => urlComments.has(recordUrl) || !urlFileList.has(recordUrl) || exitRecording;
 
               recording.add(recordName);
               recordingTimeList[recordName] = [new Date(), recordQualityZh];
 
+              /** @type {RecordingResult} */
               let recordResult;
               if (useDirectRecord) {
                 console.log(`\r${recordName} 使用Node直录模式(实验性)录制FLV流`);
@@ -319,7 +344,7 @@ async function startRecord(urlData, countVariable) {
             }
           }
         } catch (e) {
-          logger.error(`Recording error: ${e.message}`);
+          logger.error(`Recording error: ${e instanceof Error ? e.message : String(e)}`);
           errorCount++;
         }
 
@@ -344,7 +369,7 @@ async function startRecord(urlData, countVariable) {
         if (settings.loopTime) console.log();
       }
     } catch (e) {
-      logger.error(`startRecord error: ${e.message}`);
+      logger.error(`startRecord error: ${e instanceof Error ? e.message : String(e)}`);
       errorCount++;
       await sleep(2000);
     }
@@ -355,6 +380,10 @@ async function startRecord(urlData, countVariable) {
 let globalProxy = false;
 
 // 与 Python 版 clear_record_info 对应：线程退出时清理监测状态，使取消注释后能重新监测
+/**
+ * @param {string} recordName
+ * @param {string} recordUrl
+ */
 function clearRecordInfo(recordName, recordUrl) {
   recording.delete(recordName);
   if (urlComments.has(recordUrl) || !urlFileList.has(recordUrl)) {
@@ -367,7 +396,12 @@ function clearRecordInfo(recordName, recordUrl) {
   }
 }
 
+/**
+ * @param {string} platformName
+ * @returns {string}
+ */
 function getCookiesForPlatform(platformName) {
+  /** @type {Record<string, string>} */
   const map = {
     '抖音直播': settings.cookies.douyin,
     'TikTok直播': settings.cookies.tiktok,
@@ -380,6 +414,11 @@ function getCookiesForPlatform(platformName) {
   return map[platformName] || '';
 }
 
+/**
+ * @param {string} link
+ * @param {StreamInfo} streamInfo
+ * @returns {string}
+ */
 function selectSourceUrl(link, streamInfo) {
   const isFlvPreferred = link.includes('douyin') || link.includes('tiktok');
   if (isFlvPreferred && streamInfo.flv_url) {
@@ -393,6 +432,10 @@ function selectSourceUrl(link, streamInfo) {
   return streamInfo.record_url || streamInfo.m3u8_url || streamInfo.flv_url || '';
 }
 
+/**
+ * @param {Date} date
+ * @returns {string}
+ */
 function formatDateTime(date) {
   const y = date.getFullYear();
   const mo = String(date.getMonth() + 1).padStart(2, '0');
@@ -403,13 +446,20 @@ function formatDateTime(date) {
   return `${y}-${mo}-${d}_${h}-${mi}-${s}`;
 }
 
+/**
+ * @param {string} saveType
+ * @returns {string}
+ */
 function getExtension(saveType) {
+  /** @type {Record<string, string>} */
   const map = { TS: 'ts', FLV: 'flv', MKV: 'mkv', MP4: 'mp4', MP3: 'mp3', M4A: 'm4a', 'MP3音频': 'mp3', 'M4A音频': 'm4a' };
   return map[saveType] || 'ts';
 }
 
 // ============ URL Config Parsing ============
+/** @returns {UrlTuple[]} */
 function parseUrlConfig() {
+  /** @type {UrlTuple[]} */
   const urlTuplesList = [];
 
   if (!fs.existsSync(URL_CONFIG_FILE)) return urlTuplesList;
@@ -464,11 +514,16 @@ function parseUrlConfig() {
   return urlTuplesList;
 }
 
+/**
+ * @param {string} str
+ * @returns {boolean}
+ */
 function containsUrl(str) {
   return /(https?:\/\/)?(www\.)?[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+(:\d+)?(\/.*)?/.test(str);
 }
 
 // ============ Config Manager Server ============
+/** @returns {Promise<void>} */
 async function startConfigManager() {
   try {
     const { startServer } = await import('./config-manager/server.js');
@@ -478,11 +533,12 @@ async function startConfigManager() {
     const extra = info.scheme ? `(${info.scheme}${info.protocol === 'https' ? ' + TLS' : ''})` : '';
     console.log(`Web 配置管理台已启动: ${url} ${extra}`);
   } catch (e) {
-    console.log(`Web 配置管理台启动失败（不影响录制）: ${e.message}`);
+    console.log(`Web 配置管理台启动失败（不影响录制）: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
 // ============ Main ============
+/** @returns {Promise<void>} */
 async function main() {
   console.log('-----------------------------------------------------');
   console.log('|              LiveRecorder-node                    |');
@@ -558,7 +614,7 @@ async function main() {
       }
       firstStart = false;
     } catch (e) {
-      logger.error(`Main loop error: ${e.message}`);
+      logger.error(`Main loop error: ${e instanceof Error ? e.message : String(e)}`);
     }
     await sleep(3000);
   }
@@ -577,6 +633,6 @@ process.on('SIGTERM', () => {
 });
 
 main().catch(e => {
-  logger.error(`Fatal error: ${e.message}`);
+  logger.error(`Fatal error: ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
 });

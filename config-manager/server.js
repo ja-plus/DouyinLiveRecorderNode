@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * URL Config Manager - Fastify Web Server
  * Provides REST API for managing URL_config.ini and config.ini
@@ -11,6 +12,46 @@ import path from 'node:path';
 import net from 'node:net';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+/** @typedef {import('../src/types.js').ConfigManagerSettings} ConfigManagerSettings */
+
+/**
+ * URL_config.ini 单条监测项
+ * @typedef {Object} UrlConfigItem
+ * @property {boolean} enabled - 是否启用（未被 # 注释）
+ * @property {string} quality - 画质（可为空，空则用默认）
+ * @property {string} url - 直播地址
+ * @property {string} name - 主播名（可为空）
+ */
+
+/**
+ * config.ini 单个配置节
+ * @typedef {Object} AppConfigSection
+ * @property {string} name - 节名
+ * @property {{ key: string, value: string }[]} items - 键值对列表
+ */
+
+/**
+ * 录制文件条目
+ * @typedef {Object} RecordingFileItem
+ * @property {string} file - 相对录制根目录的路径（/ 分隔）
+ * @property {string} name - 文件名
+ * @property {string} ext - 扩展名（不含点）
+ * @property {number} size - 字节数
+ * @property {number} mtime - 修改时间戳（毫秒）
+ */
+
+/**
+ * startServer 启动后挂载在实例上的访问信息
+ * @typedef {Object} ConfigManagerHttpInfo
+ * @property {string} host
+ * @property {number} port
+ * @property {string} protocol - http/https
+ * @property {string} scheme - HTTP/1.1 或 HTTP/2
+ * @property {string} url
+ */
+
+/** @typedef {import('fastify').FastifyInstance & { configManagerHttpInfo: ConfigManagerHttpInfo }} ManagedFastify */
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CONFIG_DIR = path.join(ROOT_DIR, 'config');
@@ -22,6 +63,7 @@ const VIDEO_EXTS = new Set(['.flv', '.ts', '.mp4', '.mkv', '.mp3', '.m4a']);
 const OWN_CONFIG_PATH = path.join(__dirname, 'config.js');
 
 // ============ Server Settings (from config-manager/config.js) ============
+/** @type {ConfigManagerSettings} */
 const DEFAULT_SETTINGS = {
   enableHttp2: false,
   host: '127.0.0.1',
@@ -30,6 +72,7 @@ const DEFAULT_SETTINGS = {
   keyPath: '',
 };
 
+/** @returns {Promise<ConfigManagerSettings>} */
 async function getServerSettings() {
   const cfg = { ...DEFAULT_SETTINGS };
   try {
@@ -56,6 +99,10 @@ async function getServerSettings() {
   return cfg;
 }
 
+/**
+ * @param {{ certPath: string, keyPath: string }} param0
+ * @returns {{ cert: Buffer, key: Buffer, allowHTTP1: boolean } | null}
+ */
 function loadTlsOptions({ certPath, keyPath }) {
   const hasCert = certPath && fs.existsSync(certPath);
   const hasKey = keyPath && fs.existsSync(keyPath);
@@ -71,12 +118,17 @@ function loadTlsOptions({ certPath, keyPath }) {
   return null;
 }
 
-/** 启动前检测 host:port 是否已被其他进程占用；若被占，返回 { ok:false, owner:'unknown' } */
+/**
+ * 启动前检测 host:port 是否已被其他进程占用；若被占，返回 { ok:false, reason:'...' }
+ * @param {string} host
+ * @param {number} port
+ * @returns {Promise<{ ok: boolean, reason?: string }>}
+ */
 function checkPortAvailable(host, port) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.unref();
-    server.once('error', (e) => {
+    server.once('error', (/** @type {NodeJS.ErrnoException} */ e) => {
       try { server.close(); } catch {}
       if (e?.code === 'EADDRINUSE') resolve({ ok: false, reason: 'EADDRINUSE' });
       else resolve({ ok: false, reason: e?.code || String(e?.message || e) });
@@ -88,6 +140,10 @@ function checkPortAvailable(host, port) {
 }
 
 // ============ URL Config Parsing ============
+/**
+ * @param {string} content
+ * @returns {{ quality: string, url: string, name: string }}
+ */
 function parseContent(content) {
   const parts = content.split(/[,，]/).map(p => p.trim()).filter(p => p !== '');
   let quality = '';
@@ -114,7 +170,12 @@ function parseContent(content) {
   return { quality, url, name };
 }
 
+/**
+ * @param {string} text
+ * @returns {UrlConfigItem[]}
+ */
 function parseIni(text) {
+  /** @type {UrlConfigItem[]} */
   const items = [];
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim();
@@ -128,6 +189,10 @@ function parseIni(text) {
   return items;
 }
 
+/**
+ * @param {UrlConfigItem} item
+ * @returns {string}
+ */
 function buildLine(item) {
   const url = (item.url || '').trim();
   const name = (item.name || '').trim();
@@ -139,14 +204,24 @@ function buildLine(item) {
   return prefix + core;
 }
 
+/**
+ * @param {UrlConfigItem[]} items
+ * @returns {string}
+ */
 function buildIni(items) {
   const lines = items.filter(it => (it.url || '').trim()).map(buildLine);
   return lines.join('\n') + (lines.length ? '\n' : '');
 }
 
 // ============ App Config Parsing ============
+/**
+ * @param {string} text
+ * @returns {AppConfigSection[]}
+ */
 function parseAppConfig(text) {
+  /** @type {AppConfigSection[]} */
   const sections = [];
+  /** @type {AppConfigSection | null} */
   let current = null;
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim();
@@ -167,6 +242,7 @@ function parseAppConfig(text) {
 }
 
 // 从 config.ini 读取默认画质（[录制设置] -> 原画|超清|高清|标清|流畅），读取失败则回退为 原画
+/** @returns {string} */
 function getDefaultQuality() {
   try {
     if (fs.existsSync(APP_CONFIG_PATH)) {
@@ -183,6 +259,7 @@ function getDefaultQuality() {
 }
 
 // 录制文件保存目录：优先 config.ini 的 [录制设置] -> 直播保存路径(不填则默认)，否则回退 ROOT_DIR/downloads
+/** @returns {string} */
 function getDownloadsDir() {
   try {
     if (fs.existsSync(APP_CONFIG_PATH)) {
@@ -200,12 +277,19 @@ function getDownloadsDir() {
 
 // 递归扫描录制目录，返回属于指定主播的视频文件列表（按修改时间倒序）
 // 匹配规则与录制器落盘规则对应：文件名以 `主播名_` 开头，或位于以主播名命名的文件夹内
+/**
+ * @param {string} anchorName
+ * @returns {RecordingFileItem[]}
+ */
 function listRecordings(anchorName) {
   const baseDir = getDownloadsDir();
+  /** @type {RecordingFileItem[]} */
   const results = [];
   if (!fs.existsSync(baseDir)) return results;
 
+  /** @param {string} dir */
   const walk = (dir) => {
+    /** @type {import('node:fs').Dirent[]} */
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -243,7 +327,13 @@ function listRecordings(anchorName) {
   return results;
 }
 
+/**
+ * @param {string} text
+ * @param {AppConfigSection[]} sections
+ * @returns {string}
+ */
 function updateAppConfig(text, sections) {
+  /** @type {Record<string, string>} */
   const newValues = {};
   for (const sec of sections || []) {
     const secName = (sec.name || '').trim();
@@ -283,8 +373,13 @@ function updateAppConfig(text, sections) {
 }
 
 // ============ Fastify Server ============
+/** @type {ManagedFastify | null} */
 let app = null;
 
+/**
+ * @param {{ host?: string, port?: number, http2?: boolean, certPath?: string, keyPath?: string }} [options]
+ * @returns {Promise<ManagedFastify>}
+ */
 export async function startServer(options = {}) {
   const fileSettings = await getServerSettings();
   const finalHost = options.host ?? fileSettings.host;
@@ -314,6 +409,7 @@ export async function startServer(options = {}) {
     console.warn('[ConfigManager] enableHttp2=true 但未配置/找到 TLS 证书（certPath=' + (certPath || '(空)') + ', keyPath=' + (keyPath || '(空)') + '）。为避免浏览器报 ERR_SSL_PROTOCOL_ERROR，已回退为 HTTP/1.1 明文。请运行 node config-manager/gen-cert.mjs 生成证书后重启。');
   }
 
+  /** @type {{ logger: boolean, http2: boolean, https?: import('node:https').ServerOptions }} */
   const fastifyOpts = {
     logger: false,
     http2: enableHttp2,
@@ -323,7 +419,7 @@ export async function startServer(options = {}) {
     fastifyOpts.https = effectiveTls;
   }
 
-  app = Fastify(fastifyOpts);
+  app = /** @type {ManagedFastify} */ (/** @type {unknown} */ (Fastify(/** @type {any} */ (fastifyOpts))));
 
   // Register CORS
   await app.register(fastifyCors, {
@@ -350,14 +446,14 @@ export async function startServer(options = {}) {
       };
     } catch (e) {
       reply.code(500);
-      return { success: false, error: e.message };
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 
   // POST /api/config - Save URL_config.ini
   app.post('/api/config', async (request, reply) => {
     try {
-      const { items } = request.body || {};
+      const { items } = /** @type {any} */ (request.body) || {};
       if (!Array.isArray(items)) {
         reply.code(400);
         return { success: false, error: 'items 必须是数组' };
@@ -368,7 +464,7 @@ export async function startServer(options = {}) {
       return { success: true, count: parseIni(text).length };
     } catch (e) {
       reply.code(500);
-      return { success: false, error: e.message };
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 
@@ -382,14 +478,14 @@ export async function startServer(options = {}) {
       return { success: true, path: APP_CONFIG_PATH, sections: parseAppConfig(text) };
     } catch (e) {
       reply.code(500);
-      return { success: false, error: e.message };
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 
   // POST /api/app-config - Save config.ini
   app.post('/api/app-config', async (request, reply) => {
     try {
-      const { sections } = request.body || {};
+      const { sections } = /** @type {any} */ (request.body) || {};
       if (!Array.isArray(sections)) {
         reply.code(400);
         return { success: false, error: 'sections 必须是数组' };
@@ -405,14 +501,14 @@ export async function startServer(options = {}) {
       return { success: true, count };
     } catch (e) {
       reply.code(500);
-      return { success: false, error: e.message };
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 
   // GET /api/recordings?name=主播名 - 列出该主播已录制的文件
   app.get('/api/recordings', async (request, reply) => {
     try {
-      const name = String(request.query?.name || '').trim();
+      const name = String(/** @type {any} */ (request.query)?.name || '').trim();
       if (!name) {
         reply.code(400);
         return { success: false, error: '缺少参数 name（主播名）' };
@@ -420,14 +516,14 @@ export async function startServer(options = {}) {
       return { success: true, items: listRecordings(name) };
     } catch (e) {
       reply.code(500);
-      return { success: false, error: e.message };
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 
   // DELETE /api/recordings - 删除指定录制文件（body: { file: 相对录制根目录的路径 }）
   app.delete('/api/recordings', async (request, reply) => {
     try {
-      const file = String(request.body?.file || '').trim();
+      const file = String(/** @type {any} */ (request.body)?.file || '').trim();
       if (!file) {
         reply.code(400);
         return { success: false, error: '缺少参数 file' };
@@ -451,7 +547,7 @@ export async function startServer(options = {}) {
       return { success: true };
     } catch (e) {
       reply.code(500);
-      return { success: false, error: e.message };
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 

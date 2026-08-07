@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Color utilities for terminal output
  */
@@ -12,6 +13,12 @@ export const Color = {
   RESET: '\x1b[0m'
 };
 
+/** @typedef {(typeof Color)[keyof typeof Color]} ColorCode */
+
+/**
+ * @param {string} text
+ * @param {ColorCode} color
+ */
 export function printColored(text, color) {
   console.log(`${color}${text}${Color.RESET}`);
 }

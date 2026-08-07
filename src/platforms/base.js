@@ -1,8 +1,16 @@
+// @ts-check
 /**
  * Platform base class - all platform handlers extend this
  */
+
+/** @typedef {import('../types.js').AppSettings} AppSettings */
+/** @typedef {import('../types.js').StreamInfo} StreamInfo */
+/** @typedef {import('../types.js').StreamInfoOptions} StreamInfoOptions */
+
 export class BasePlatform {
+  /** @param {AppSettings} settings */
   constructor(settings) {
+    /** @type {AppSettings} */
     this.settings = settings;
   }
 
@@ -26,8 +34,8 @@ export class BasePlatform {
   /**
    * Get stream info for the given URL
    * @param {string} url
-   * @param {object} options - { proxyAddr, cookies, quality }
-   * @returns {Promise<object>} - { anchor_name, is_live, title, record_url, flv_url, m3u8_url, quality }
+   * @param {StreamInfoOptions} [options] - { proxyAddr, cookies, quality }
+   * @returns {Promise<StreamInfo>} - { anchor_name, is_live, title, record_url, flv_url, m3u8_url, quality }
    */
   async getStreamInfo(url, options = {}) {
     return { anchor_name: '', is_live: false };

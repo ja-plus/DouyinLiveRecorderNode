@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "useUnknownInCatchVariables": false,
+    "noImplicitReturns": false,
+    "noFallthroughCasesInSwitch": false,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
+  },
+  "include": ["main.js", "src/**/*.js", "config-manager/server.js", "config-manager/config.js"],
+  "exclude": ["node_modules", "config-manager/frontend", "config-manager/static"]
+}

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Recorder module - handles ffmpeg-based recording
  */
@@ -8,8 +9,27 @@ import logger from '../logger.js';
 import { sleep, getFilePaths } from '../utils/index.js';
 import { printColored, Color } from '../utils/color.js';
 
+/** @typedef {import('../types.js').RecordingResult} RecordingResult */
+/** @typedef {import('../types.js').StopChecker} StopChecker */
+
+/**
+ * buildFfmpegCommand 参数
+ * @typedef {Object} FfmpegCommandOptions
+ * @property {string} sourceUrl - 直播源地址
+ * @property {string} saveFilePath - 保存文件路径
+ * @property {string | null} [proxyAddr]
+ * @property {string} [platform]
+ * @property {boolean} [splitVideoByTime]
+ * @property {string} [splitTime]
+ * @property {string} [videoSaveType]
+ * @property {string} [recordUrl]
+ * @property {boolean} [enableHttps]
+ * @property {boolean} [isOverseas]
+ */
+
 /**
  * Check if ffmpeg is available
+ * @returns {Promise<boolean>}
  */
 export function checkFfmpeg() {
   return new Promise((resolve) => {
@@ -36,6 +56,8 @@ export function checkFfmpeg() {
 
 /**
  * Build ffmpeg command for recording
+ * @param {FfmpegCommandOptions} param0
+ * @returns {string[]}
  */
 export function buildFfmpegCommand({
   sourceUrl, saveFilePath, proxyAddr = null, platform = '',
@@ -62,6 +84,7 @@ export function buildFfmpegCommand({
 
   // 录制实时直播流不使用 -re（按帧率节流仅适用于推流本地文件场景，
   // 对直播输入只会引入额外缓冲与节流开销）
+  /** @type {string[]} */
   const cmd = [
     'ffmpeg', '-y',
     '-rw_timeout', rwTimeout,
@@ -101,6 +124,13 @@ export function buildFfmpegCommand({
   return cmd;
 }
 
+/**
+ * @param {string} saveType
+ * @param {boolean} splitByTime
+ * @param {string} splitTime
+ * @param {string} savePath
+ * @returns {string[]}
+ */
 function getOutputCommand(saveType, splitByTime, splitTime, savePath) {
   switch (saveType) {
     case 'FLV':
@@ -158,9 +188,13 @@ function getOutputCommand(saveType, splitByTime, splitTime, savePath) {
 
 /**
  * Get record headers for specific platforms
+ * @param {string} platform
+ * @param {string} liveUrl
+ * @returns {string | null}
  */
 function getRecordHeaders(platform, liveUrl) {
   const liveDomain = liveUrl.split('/').slice(0, 3).join('/');
+  /** @type {Record<string, string>} */
   const headers = {
     'PandaTV': 'origin:https://www.pandalive.co.kr',
     'WinkTV': 'origin:https://www.winktv.co.kr',
@@ -178,6 +212,9 @@ function getRecordHeaders(platform, liveUrl) {
 /**
  * Run ffmpeg recording process
  * Returns a promise that resolves when recording stops
+ * @param {string[]} ffmpegCommand
+ * @param {{ recordName: string, recordUrl: string, onStop?: StopChecker }} param1
+ * @returns {Promise<RecordingResult>}
  */
 export function runRecording(ffmpegCommand, { recordName, recordUrl, onStop }) {
   return new Promise((resolve) => {
@@ -228,6 +265,10 @@ export function runRecording(ffmpegCommand, { recordName, recordUrl, onStop }) {
 
 /**
  * Convert TS to MP4
+ * @param {string} filePath
+ * @param {boolean} [deleteOriginal]
+ * @param {boolean} [toH264]
+ * @returns {Promise<boolean>}
  */
 export function convertsMp4(filePath, deleteOriginal = true, toH264 = false) {
   return new Promise((resolve) => {
@@ -262,6 +303,12 @@ export function convertsMp4(filePath, deleteOriginal = true, toH264 = false) {
 
 /**
  * Segment video
+ * @param {string} inputPath
+ * @param {string} outputPath
+ * @param {string} format
+ * @param {string | number} segmentTime
+ * @param {boolean} [deleteOriginal]
+ * @returns {Promise<boolean>}
  */
 export function segmentVideo(inputPath, outputPath, format, segmentTime, deleteOriginal = true) {
   return new Promise((resolve) => {

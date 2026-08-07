@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Common utility functions
  */
@@ -7,6 +8,9 @@ import path from 'node:path';
 
 /**
  * Remove emojis from text
+ * @param {string} text
+ * @param {string} [replaceText]
+ * @returns {string}
  */
 export function removeEmojis(text, replaceText = '') {
   const emojiPattern = /[\u{1F1E0}-\u{1F1FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2702}-\u{27B0}]+/gu;
@@ -15,6 +19,8 @@ export function removeEmojis(text, replaceText = '') {
 
 /**
  * Calculate MD5 hash of a file
+ * @param {string} filePath
+ * @returns {string}
  */
 export function checkMd5(filePath) {
   const content = fs.readFileSync(filePath);
@@ -23,6 +29,8 @@ export function checkMd5(filePath) {
 
 /**
  * Convert dict to cookie string
+ * @param {Record<string, string>} cookiesDict
+ * @returns {string}
  */
 export function dictToCookieStr(cookiesDict) {
   return Object.entries(cookiesDict).map(([k, v]) => `${k}=${v}`).join('; ');
@@ -30,9 +38,13 @@ export function dictToCookieStr(cookiesDict) {
 
 /**
  * Get all file paths in a directory recursively
+ * @param {string} directory
+ * @returns {string[]}
  */
 export function getFilePaths(directory) {
+  /** @type {string[]} */
   const filePaths = [];
+  /** @param {string} dir */
   function walk(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
@@ -52,6 +64,8 @@ export function getFilePaths(directory) {
 
 /**
  * Remove duplicate lines from a file
+ * @param {string} filePath
+ * @returns {void}
  */
 export function removeDuplicateLines(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -63,8 +77,11 @@ export function removeDuplicateLines(filePath) {
 
 /**
  * Check disk free space in GB
+ * @param {string} _filePath
+ * @param {boolean} [_show]
+ * @returns {number}
  */
-export function checkDiskCapacity(filePath, show = false) {
+export function checkDiskCapacity(_filePath, _show = false) {
   // Node.js doesn't have a built-in disk usage API
   // Return a safe default; actual implementation would use platform-specific calls
   return 100.0;
@@ -72,20 +89,23 @@ export function checkDiskCapacity(filePath, show = false) {
 
 /**
  * Handle proxy address format
+ * @param {string | null | undefined} proxyAddr
+ * @returns {string | null}
  */
 export function handleProxyAddr(proxyAddr) {
   if (proxyAddr) {
     if (!proxyAddr.startsWith('http')) {
       proxyAddr = 'http://' + proxyAddr;
     }
-  } else {
-    proxyAddr = null;
+    return proxyAddr;
   }
-  return proxyAddr;
+  return null;
 }
 
 /**
  * Generate random string
+ * @param {number} length
+ * @returns {string}
  */
 export function generateRandomString(length) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -98,6 +118,8 @@ export function generateRandomString(length) {
 
 /**
  * Parse JSONP to JSON
+ * @param {string} jsonpStr
+ * @returns {any}
  */
 export function jsonpToJson(jsonpStr) {
   const match = jsonpStr.match(/(\w+)\((.*)\);?$/s);
@@ -109,10 +131,25 @@ export function jsonpToJson(jsonpStr) {
 
 /**
  * Get query parameters from URL
+ * @overload
+ * @param {string} url
+ * @returns {Record<string, string[]>}
+ */
+/**
+ * @overload
+ * @param {string} url
+ * @param {string} paramName
+ * @returns {string[]}
+ */
+/**
+ * @param {string} url
+ * @param {string | null} [paramName]
+ * @returns {Record<string, string[]> | string[]}
  */
 export function getQueryParams(url, paramName = null) {
   const urlObj = new URL(url, 'http://localhost');
   if (paramName === null) {
+    /** @type {Record<string, string[]>} */
     const params = {};
     for (const [key, value] of urlObj.searchParams) {
       if (!params[key]) params[key] = [];
@@ -125,6 +162,10 @@ export function getQueryParams(url, paramName = null) {
 
 /**
  * Replace URL in file
+ * @param {string} filePath
+ * @param {string} oldStr
+ * @param {string} newStr
+ * @returns {void}
  */
 export function replaceUrl(filePath, oldStr, newStr) {
   if (!fs.existsSync(filePath)) return;
@@ -137,6 +178,8 @@ export function replaceUrl(filePath, oldStr, newStr) {
 
 /**
  * Sleep helper
+ * @param {number} ms
+ * @returns {Promise<void>}
  */
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -146,6 +189,11 @@ export function sleep(ms) {
  * Clean name - remove special characters
  */
 const RSTR = /[\/\\:*?"<>|&#.。,， ~！· ]/g;
+/**
+ * @param {string} inputText
+ * @param {boolean} [cleanEmoji]
+ * @returns {string}
+ */
 export function cleanName(inputText, cleanEmoji = true) {
   let cleaned = inputText.trim().replace(RSTR, '_').replace(/^_+|_+$/g, '');
   cleaned = cleaned.replace('（', '(').replace('）', ')');
@@ -158,6 +206,7 @@ export function cleanName(inputText, cleanEmoji = true) {
 /**
  * Quality code mapping
  */
+/** @type {Record<string, string>} */
 const QUALITY_MAPPING = {
   '原画': 'OD',
   '蓝光': 'BD',
@@ -167,6 +216,10 @@ const QUALITY_MAPPING = {
   '流畅': 'LD'
 };
 
+/**
+ * @param {string} qn
+ * @returns {string}
+ */
 export function getQualityCode(qn) {
   return QUALITY_MAPPING[qn] || 'OD';
 }
@@ -174,8 +227,13 @@ export function getQualityCode(qn) {
 /**
  * Quality index mapping
  */
+/** @type {Record<string, number>} */
 const QUALITY_INDEX = { OD: 0, BD: 0, UHD: 1, HD: 2, SD: 3, LD: 4 };
 
+/**
+ * @param {string | number | null | undefined} quality
+ * @returns {[string, number]}
+ */
 export function getQualityIndex(quality) {
   if (!quality) return ['OD', 0];
   let qualityStr = String(quality).toUpperCase();

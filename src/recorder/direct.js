@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Direct recording runner - Node 直录模式（实验性）的主线程调度器
  *
@@ -22,10 +23,11 @@ const DIRECT_USER_AGENT = 'Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) App
  * @param {object} params
  * @param {string} params.sourceUrl - 直播源地址（FLV）
  * @param {string} params.saveFilePath - 保存文件路径（.flv）
- * @param {string|null} params.proxyAddr - 代理地址
- * @param {object} params.headers - 额外请求头（如 referer/origin）
+ * @param {string|null} [params.proxyAddr] - 代理地址
+ * @param {Record<string, string>} [params.headers] - 额外请求头（如 referer/origin）
  * @param {string} params.recordName - 录制名（日志用）
- * @param {function} params.onStop - 每秒轮询，返回 true 时优雅停止
+ * @param {import('../types.js').StopChecker} [params.onStop] - 每秒轮询，返回 true 时优雅停止
+ * @returns {Promise<import('../types.js').DirectRecordingResult>}
  */
 export function runDirectRecording({ sourceUrl, saveFilePath, proxyAddr = null, headers = {}, recordName, onStop }) {
   return new Promise((resolve) => {
@@ -42,7 +44,9 @@ export function runDirectRecording({ sourceUrl, saveFilePath, proxyAddr = null, 
 
     let stopped = false;
     let endedReason = '';
+    /** @type {ReturnType<typeof setTimeout> | null} */
     let endedTimer = null;
+    /** @type {string[]} */
     const files = [];
 
     const checkInterval = setInterval(() => {
@@ -71,7 +75,7 @@ export function runDirectRecording({ sourceUrl, saveFilePath, proxyAddr = null, 
 
     worker.on('error', (err) => {
       // worker 内未捕获异常/OOM 到达此处，仅影响本路录制
-      logger.error(`${recordName} 直录worker异常: ${err.message}`);
+      logger.error(`${recordName} 直录worker异常: ${err instanceof Error ? err.message : String(err)}`);
     });
 
     worker.on('exit', (code) => {

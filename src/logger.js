@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Logger module - using pino for high-performance logging
  */
@@ -37,7 +38,7 @@ const prettyStream = pretty({
 const consoleLevel = process.env.LOG_LEVEL || 'info';
 
 const streams = [
-  { level: consoleLevel, stream: prettyStream },
+  { level: /** @type {pino.Level} */ (consoleLevel), stream: prettyStream },
   { level: 'debug', stream: pino.destination({ dest: path.join(LOGS_DIR, 'streamget.log'), mkdir: true }) },
   { level: 'info', stream: pino.destination({ dest: path.join(LOGS_DIR, 'PlayURL.log'), mkdir: true }) }
 ];

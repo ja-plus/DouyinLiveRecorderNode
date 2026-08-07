@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Record worker - Node 直录 worker 线程（实验性）
  *
@@ -17,6 +18,26 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { request, Agent, ProxyAgent } from 'undici';
 
+/**
+ * 主线程 workerData 传入的录制参数
+ * @typedef {Object} RecordWorkerData
+ * @property {string} sourceUrl
+ * @property {string} saveFilePath
+ * @property {string | null} [proxyAddr]
+ * @property {Record<string, string>} [headers]
+ * @property {number} [idleTimeout]
+ * @property {number} [headersTimeout]
+ * @property {number} [maxReconnects]
+ * @property {number} [reconnectDelay]
+ * @property {number} [minValidBytes]
+ */
+
+if (!parentPort) {
+  throw new Error('record-worker.js must run in a worker thread');
+}
+/** @type {import('node:worker_threads').MessagePort} */
+const port = parentPort;
+
 const {
   sourceUrl,
   saveFilePath,
@@ -30,18 +51,20 @@ const {
   reconnectDelay = 3000,
   // 单次拉流写入低于该字节数视为无效连接（如秒断的 200 空响应）
   minValidBytes = 32 * 1024
-} = workerData;
+} = /** @type {RecordWorkerData} */ (workerData || {});
 
 let stopped = false;
+/** @type {AbortController | null} */
 let currentAbort = null;
 let totalBytes = 0;
 
 // 拉流所用 dispatcher：worker 生命周期内复用同一个，退出时随线程销毁
+/** @type {import('undici').Dispatcher} */
 const dispatcher = proxyAddr
   ? new ProxyAgent({ uri: proxyAddr, connect: { rejectUnauthorized: false } })
   : new Agent({ connect: { rejectUnauthorized: false } });
 
-parentPort.on('message', (msg) => {
+port.on('message', (msg) => {
   if (msg && msg.type === 'stop') {
     stopped = true;
     if (currentAbort) currentAbort.abort();
@@ -51,6 +74,8 @@ parentPort.on('message', (msg) => {
 /**
  * 重连时生成新文件名（FLV 头会随新连接重发，续写原文件会损坏容器结构）
  * xxx.flv -> xxx_part1.flv, xxx_part2.flv ...
+ * @param {number} partIndex
+ * @returns {string}
  */
 function segmentFilePath(partIndex) {
   if (partIndex === 0) return saveFilePath;
@@ -61,6 +86,8 @@ function segmentFilePath(partIndex) {
 
 /**
  * 单次拉流写盘，返回本次写入字节数；抛错或返回后由外层决定是否重连
+ * @param {string} filePath
+ * @returns {Promise<number>}
  */
 async function recordOnce(filePath) {
   const ac = new AbortController();
@@ -80,12 +107,12 @@ async function recordOnce(filePath) {
     throw new Error(`HTTP ${res.statusCode}`);
   }
 
-  parentPort.postMessage({ type: 'segment', file: filePath });
+  port.postMessage({ type: 'segment', file: filePath });
   const ws = fs.createWriteStream(filePath);
 
   // 周期性上报进度，主线程据此展示状态；worker 内不做任何格式解析
   const progressTimer = setInterval(() => {
-    parentPort.postMessage({ type: 'progress', bytes: totalBytes + ws.bytesWritten });
+    port.postMessage({ type: 'progress', bytes: totalBytes + ws.bytesWritten });
   }, 10000);
 
   try {
@@ -115,7 +142,7 @@ async function main() {
       cleanEnd = true;
     } catch (e) {
       if (stopped) break;
-      reason = e.message || String(e);
+      reason = e instanceof Error ? (e.message || String(e)) : String(e);
     }
     const written = totalBytes - bytesBefore;
     // 空文件分片不占用 part 序号，下次重连覆盖写同名文件
@@ -133,7 +160,7 @@ async function main() {
     await new Promise(r => setTimeout(r, reconnectDelay));
   }
 
-  parentPort.postMessage({
+  port.postMessage({
     type: 'ended',
     reason: stopped ? 'stopped' : reason,
     bytes: totalBytes
@@ -142,11 +169,11 @@ async function main() {
 
 main()
   .catch((e) => {
-    parentPort.postMessage({ type: 'ended', reason: `worker-error: ${e.message}`, bytes: totalBytes });
+    port.postMessage({ type: 'ended', reason: `worker-error: ${e instanceof Error ? e.message : String(e)}`, bytes: totalBytes });
   })
   .finally(() => {
     // 关闭 dispatcher 与消息端口：message 监听会持有事件循环引用，
     // 不关闭 parentPort 的话 worker 无法自然退出
     dispatcher.close().catch(() => {});
-    parentPort.close();
+    port.close();
   });

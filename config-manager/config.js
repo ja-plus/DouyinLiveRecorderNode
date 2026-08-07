@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Config Manager 独立配置
  * 注意：此文件仅用于 config-manager (Web 配置管理台)，
@@ -17,6 +18,7 @@
  *
  * 配置变更后，重启 npm start / node config-manager/server.js 生效。
  */
+/** @type {import('../src/types.js').ConfigManagerSettings} */
 export default {
   enableHttp2: false,
   host: '0.0.0.0',

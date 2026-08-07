@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Message push module - supports multiple notification channels
  */
@@ -5,11 +6,27 @@ import nodemailer from 'nodemailer';
 import { postJson } from '../http/client.js';
 import logger from '../logger.js';
 
+/** @typedef {import('../types.js').PushSettings} PushSettings */
+
+/**
+ * 推送结果
+ * @typedef {Object} PushResult
+ * @property {(string | number)[]} success
+ * @property {(string | number)[]} error
+ */
+
 /**
  * DingTalk push notification
+ * @param {string} url
+ * @param {string} content
+ * @param {string} [number]
+ * @param {boolean} [isAtall]
+ * @returns {Promise<PushResult>}
  */
 export async function dingtalk(url, content, number = '', isAtall = false) {
+  /** @type {string[]} */
   const success = [];
+  /** @type {string[]} */
   const error = [];
   const apiList = url ? url.replace('，', ',').split(',') : [];
 
@@ -30,7 +47,7 @@ export async function dingtalk(url, content, number = '', isAtall = false) {
       }
     } catch (e) {
       error.push(api);
-      console.log(`钉钉推送失败, 推送地址：${api}, 错误信息:${e.message}`);
+      console.log(`钉钉推送失败, 推送地址：${api}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { success, error };
@@ -38,9 +55,15 @@ export async function dingtalk(url, content, number = '', isAtall = false) {
 
 /**
  * WeChat (Xizhi) push notification
+ * @param {string} url
+ * @param {string} title
+ * @param {string} content
+ * @returns {Promise<PushResult>}
  */
 export async function xizhi(url, title, content) {
+  /** @type {string[]} */
   const success = [];
+  /** @type {string[]} */
   const error = [];
   const apiList = url ? url.replace('，', ',').split(',') : [];
 
@@ -57,7 +80,7 @@ export async function xizhi(url, title, content) {
       }
     } catch (e) {
       error.push(api);
-      console.log(`微信推送失败, 推送地址：${api}, 错误信息:${e.message}`);
+      console.log(`微信推送失败, 推送地址：${api}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { success, error };
@@ -65,6 +88,10 @@ export async function xizhi(url, title, content) {
 
 /**
  * Telegram bot push notification
+ * @param {string} chatId
+ * @param {string} token
+ * @param {string} content
+ * @returns {Promise<PushResult>}
  */
 export async function tgBot(chatId, token, content) {
   try {
@@ -73,18 +100,29 @@ export async function tgBot(chatId, token, content) {
     JSON.parse(result);
     return { success: [1], error: [] };
   } catch (e) {
-    console.log(`tg推送失败, 聊天ID：${chatId}, 错误信息:${e.message}`);
+    console.log(`tg推送失败, 聊天ID：${chatId}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     return { success: [], error: [1] };
   }
 }
 
 /**
  * Email push notification
+ * @param {string} emailHost
+ * @param {string} loginEmail
+ * @param {string} emailPass
+ * @param {string} senderEmail
+ * @param {string} senderName
+ * @param {string} toEmail
+ * @param {string} title
+ * @param {string} content
+ * @param {string | null} [smtpPort]
+ * @param {boolean} [openSsl]
+ * @returns {Promise<PushResult>}
  */
 export async function sendEmail(emailHost, loginEmail, emailPass, senderEmail, senderName, toEmail, title, content, smtpPort = null, openSsl = true) {
   const receivers = toEmail ? toEmail.replace('，', ',').split(',') : [];
   try {
-    const port = parseInt(smtpPort) || (openSsl ? 465 : 25);
+    const port = parseInt(smtpPort || '') || (openSsl ? 465 : 25);
     const transporter = nodemailer.createTransport({
       host: emailHost,
       port,
@@ -100,16 +138,21 @@ export async function sendEmail(emailHost, loginEmail, emailPass, senderEmail, s
     });
     return { success: receivers, error: [] };
   } catch (e) {
-    console.log(`邮件推送失败, 推送邮箱：${toEmail}, 错误信息:${e.message}`);
+    console.log(`邮件推送失败, 推送邮箱：${toEmail}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     return { success: [], error: receivers };
   }
 }
 
 /**
  * Bark push notification (iOS)
+ * @param {string} api
+ * @param {{ title?: string, content?: string, level?: string, sound?: string }} [param1]
+ * @returns {Promise<PushResult>}
  */
 export async function bark(api, { title = 'message', content = 'test', level = 'active', sound = '' } = {}) {
+  /** @type {string[]} */
   const success = [];
+  /** @type {string[]} */
   const error = [];
   const apiList = api ? api.replace('，', ',').split(',') : [];
 
@@ -128,7 +171,7 @@ export async function bark(api, { title = 'message', content = 'test', level = '
       }
     } catch (e) {
       error.push(_api);
-      console.log(`Bark推送失败, 推送地址：${_api}, 错误信息:${e.message}`);
+      console.log(`Bark推送失败, 推送地址：${_api}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { success, error };
@@ -136,9 +179,14 @@ export async function bark(api, { title = 'message', content = 'test', level = '
 
 /**
  * Ntfy push notification
+ * @param {string} api
+ * @param {{ title?: string, content?: string, tags?: string, actionUrl?: string, email?: string }} [param1]
+ * @returns {Promise<PushResult>}
  */
 export async function ntfy(api, { title = 'message', content = 'test', tags = 'tada', actionUrl = '', email = '' } = {}) {
+  /** @type {string[]} */
   const success = [];
+  /** @type {string[]} */
   const error = [];
   const apiList = api ? api.replace('，', ',').split(',') : [];
   const tagList = tags ? tags.replace('，', ',').split(',') : ['partying_face'];
@@ -161,7 +209,7 @@ export async function ntfy(api, { title = 'message', content = 'test', tags = 't
       }
     } catch (e) {
       error.push(_api);
-      console.log(`ntfy推送失败, 推送地址：${_api}, 错误信息:${e.message}`);
+      console.log(`ntfy推送失败, 推送地址：${_api}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { success, error };
@@ -169,9 +217,15 @@ export async function ntfy(api, { title = 'message', content = 'test', tags = 't
 
 /**
  * PushPlus push notification
+ * @param {string} token
+ * @param {string} title
+ * @param {string} content
+ * @returns {Promise<PushResult>}
  */
 export async function pushplus(token, title, content) {
+  /** @type {string[]} */
   const success = [];
+  /** @type {string[]} */
   const error = [];
   const tokenList = token ? token.replace('，', ',').split(',') : [];
 
@@ -190,7 +244,7 @@ export async function pushplus(token, title, content) {
       }
     } catch (e) {
       error.push(_token);
-      console.log(`PushPlus推送失败, Token：${_token}, 错误信息:${e.message}`);
+      console.log(`PushPlus推送失败, Token：${_token}, 错误信息:${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { success, error };
@@ -198,11 +252,17 @@ export async function pushplus(token, title, content) {
 
 /**
  * Unified push message dispatcher
+ * @param {string} recordName
+ * @param {string} liveUrl
+ * @param {string} content
+ * @param {PushSettings} pushSettings
+ * @returns {Promise<void>}
  */
 export async function pushMessage(recordName, liveUrl, content, pushSettings) {
   const msgTitle = pushSettings.pushMessageTitle?.trim() || '直播间状态更新通知';
   const pushChannel = (pushSettings.liveStatusPush || '').toUpperCase();
 
+  /** @type {Record<string, () => Promise<PushResult>>} */
   const pushFunctions = {
     '微信': () => xizhi(pushSettings.xizhiApiUrl, msgTitle, content),
     '钉钉': () => dingtalk(pushSettings.dingtalkApiUrl, content, pushSettings.dingtalkPhoneNum, pushSettings.dingtalkIsAtall),
@@ -223,7 +283,7 @@ export async function pushMessage(recordName, liveUrl, content, pushSettings) {
         const result = await func();
         console.log(`提示信息：已经将[${recordName}]直播状态消息推送至你的${platform}, 成功${result.success.length}, 失败${result.error.length}`);
       } catch (e) {
-        console.log(`直播消息推送到${platform}失败: ${e.message}`);
+        console.log(`直播消息推送到${platform}失败: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }

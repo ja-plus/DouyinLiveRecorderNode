@@ -1,9 +1,15 @@
+// @ts-check
 /**
  * A-Bogus signature algorithm for Douyin
  * Ported from Python implementation
  */
 import crypto from 'node:crypto';
 
+/**
+ * @param {string} plaintext
+ * @param {string} key
+ * @returns {string}
+ */
 function rc4Encrypt(plaintext, key) {
   const s = Array.from({ length: 256 }, (_, i) => i);
   let j = 0;
@@ -13,6 +19,7 @@ function rc4Encrypt(plaintext, key) {
   }
 
   let i = 0; j = 0;
+  /** @type {string[]} */
   const result = [];
   for (const char of plaintext) {
     i = (i + 1) % 256;
@@ -24,22 +31,45 @@ function rc4Encrypt(plaintext, key) {
   return result.join('');
 }
 
+/**
+ * @param {number} x
+ * @param {number} n
+ * @returns {number}
+ */
 function leftRotate(x, n) {
   n %= 32;
   return ((x << n) | (x >>> (32 - n))) >>> 0;
 }
 
+/**
+ * @param {number} j
+ * @returns {number}
+ */
 function getTJ(j) {
   if (j < 16) return 2043430169;
   if (j < 64) return 2055708042;
   throw new Error('invalid j');
 }
 
+/**
+ * @param {number} j
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @returns {number}
+ */
 function ffJ(j, x, y, z) {
   if (j < 16) return (x ^ y ^ z) >>> 0;
   return ((x & y) | (x & z) | (y & z)) >>> 0;
 }
 
+/**
+ * @param {number} j
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @returns {number}
+ */
 function ggJ(j, x, y, z) {
   if (j < 16) return (x ^ y ^ z) >>> 0;
   return ((x & y) | (~x & z)) >>> 0;
@@ -47,8 +77,11 @@ function ggJ(j, x, y, z) {
 
 class SM3 {
   constructor() {
+    /** @type {number[]} */
     this.reg = [];
+    /** @type {number[]} */
     this.chunk = [];
+    /** @type {number} */
     this.size = 0;
     this.reset();
   }
@@ -59,7 +92,12 @@ class SM3 {
     this.size = 0;
   }
 
+  /**
+   * @param {string | number[]} data
+   * @returns {void}
+   */
   write(data) {
+    /** @type {number[]} */
     let a;
     if (typeof data === 'string') {
       a = [...Buffer.from(data, 'utf-8')];
@@ -98,6 +136,7 @@ class SM3 {
     for (let i = 0; i < 4; i++) this.chunk.push((bitLength >>> (8 * (3 - i))) & 0xFF);
   }
 
+  /** @param {number[]} data */
   _compress(data) {
     if (data.length < 64) throw new Error('compress error');
     const w = new Array(132).fill(0);
@@ -131,6 +170,11 @@ class SM3 {
     this.reg[7] = (this.reg[7] ^ h) >>> 0;
   }
 
+  /**
+   * @param {string | number[] | null} [data]
+   * @param {'hex' | null} [outputFormat]
+   * @returns {string | number[]}
+   */
   sum(data = null, outputFormat = null) {
     if (data !== null) {
       this.reset();
@@ -140,6 +184,7 @@ class SM3 {
     for (let f = 0; f < this.chunk.length; f += 64) {
       this._compress(this.chunk.slice(f, f + 64));
     }
+    /** @type {string | number[]} */
     let result;
     if (outputFormat === 'hex') {
       result = this.reg.map(v => v.toString(16).padStart(8, '0')).join('');
@@ -155,6 +200,7 @@ class SM3 {
   }
 }
 
+/** @type {Record<string, string>} */
 const ENCODING_TABLES = {
   s0: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=',
   s1: 'Dkdpgh4ZKsQB80/Mfvw36XI1R25+WUAlEi7NLboqYTOPuzmFjJnryx9HVGcaStCe=',
@@ -163,6 +209,11 @@ const ENCODING_TABLES = {
   s4: 'Dkdpgh2ZmsQB80/MfvV36XI1R45-WUAlEixNLwoqYTOPuzKFjJnry79HbGcaStCe'
 };
 
+/**
+ * @param {number} roundNum
+ * @param {string} longStr
+ * @returns {number}
+ */
 function getLongInt(roundNum, longStr) {
   roundNum *= 3;
   const c1 = roundNum < longStr.length ? longStr.charCodeAt(roundNum) : 0;
@@ -171,6 +222,11 @@ function getLongInt(roundNum, longStr) {
   return (c1 << 16) | (c2 << 8) | c3;
 }
 
+/**
+ * @param {string} longStr
+ * @param {string} num
+ * @returns {string}
+ */
 function resultEncrypt(longStr, num) {
   const table = ENCODING_TABLES[num];
   const masks = [16515072, 258048, 4032, 63];
@@ -192,6 +248,11 @@ function resultEncrypt(longStr, num) {
   return result;
 }
 
+/**
+ * @param {number} randomNum
+ * @param {number[]} option
+ * @returns {number[]}
+ */
 function generRandom(randomNum, option) {
   const byte1 = randomNum & 255;
   const byte2 = (randomNum >> 8) & 255;
@@ -203,8 +264,10 @@ function generRandom(randomNum, option) {
   ];
 }
 
+/** @returns {string} */
 function generateRandomStr() {
   const randomValues = [0.123456789, 0.987654321, 0.555555555];
+  /** @type {number[]} */
   const randomBytes = [];
   randomBytes.push(...generRandom(Math.floor(randomValues[0] * 10000), [3, 45]));
   randomBytes.push(...generRandom(Math.floor(randomValues[1] * 10000), [1, 0]));
@@ -212,21 +275,31 @@ function generateRandomStr() {
   return randomBytes.map(b => String.fromCharCode(b)).join('');
 }
 
+/**
+ * @param {string} urlSearchParams
+ * @param {string} userAgent
+ * @param {string} windowEnvStr
+ * @param {string} [suffix]
+ * @param {number[]} [args]
+ * @returns {string}
+ */
 function generateRc4BbStr(urlSearchParams, userAgent, windowEnvStr, suffix = 'cus', args = [0, 1, 14]) {
   const sm3 = new SM3();
   const startTime = Date.now();
 
-  const urlSearchParamsList = sm3.sum(sm3.sum(urlSearchParams + suffix));
-  const cus = sm3.sum(sm3.sum(suffix));
+  const urlSearchParamsList = /** @type {number[]} */ (sm3.sum(/** @type {number[]} */ (sm3.sum(urlSearchParams + suffix))));
+  const cus = /** @type {number[]} */ (sm3.sum(/** @type {number[]} */ (sm3.sum(suffix))));
   const uaKey = String.fromCharCode(0) + String.fromCharCode(1) + String.fromCharCode(14);
-  const ua = sm3.sum(resultEncrypt(rc4Encrypt(userAgent, uaKey), 's3'));
+  const ua = /** @type {number[]} */ (sm3.sum(resultEncrypt(rc4Encrypt(userAgent, uaKey), 's3')));
 
   const endTime = startTime + 100;
+  /** @type {Record<number, any>} */
   const b = {};
   b[8] = 3; b[10] = endTime;
   b[15] = { aid: 6383, pageId: 110624, boe: false, ddrt: 7, paths: { include: Array(7).fill({}), exclude: [] }, track: { mode: 0, delay: 300, paths: [] }, dump: true, rpU: 'hwj' };
   b[16] = startTime; b[18] = 44; b[19] = [1, 0, 1, 5];
 
+  /** @param {number} num */
   const splitToBytes = (num) => [(num >>> 24) & 255, (num >>> 16) & 255, (num >>> 8) & 255, num & 255];
 
   const stb = splitToBytes(b[16]);
@@ -280,6 +353,12 @@ function generateRc4BbStr(urlSearchParams, userAgent, windowEnvStr, suffix = 'cu
   return rc4Encrypt(bb.map(byte => String.fromCharCode(byte)).join(''), String.fromCharCode(121));
 }
 
+/**
+ * 生成抖音 a_bogus 签名
+ * @param {string} urlSearchParams
+ * @param {string} userAgent
+ * @returns {string}
+ */
 export function abSign(urlSearchParams, userAgent) {
   const windowEnvStr = '1920|1080|1920|1040|0|30|0|0|1872|92|1920|1040|1857|92|1|24|Win32';
   return resultEncrypt(

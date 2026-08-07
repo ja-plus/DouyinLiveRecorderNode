@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Douyin (抖音) platform handler
  */
@@ -7,14 +8,22 @@ import { abSign } from '../crypto/ab-sign.js';
 import { getQualityIndex } from '../utils/index.js';
 import logger from '../logger.js';
 
+/** @typedef {import('../types.js').StreamInfo} StreamInfo */
+
 export class DouyinPlatform extends BasePlatform {
   get name() { return '抖音直播'; }
   get prefersFlv() { return true; }
 
+  /** @param {string} url */
   match(url) {
     return url.includes('douyin.com/');
   }
 
+  /**
+   * @param {string} url
+   * @param {import('../types.js').StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     if (url.includes('v.douyin.com') || url.includes('/user/')) {
       return this._getAppStreamData(url, proxyAddr, cookies, quality);
@@ -22,6 +31,13 @@ export class DouyinPlatform extends BasePlatform {
     return this._getWebStreamData(url, proxyAddr, cookies, quality);
   }
 
+  /**
+   * @param {string} url
+   * @param {string | null} proxyAddr
+   * @param {string} cookies
+   * @param {string} quality
+   * @returns {Promise<StreamInfo>}
+   */
   async _getWebStreamData(url, proxyAddr, cookies, quality) {
     const headers = {
       cookie: cookies || 'ttwid=1%7C2iDIYVmjzMcpZ20fcaFde0VghXAA3NaNXE_SLR68IyE%7C1761045455%7Cab35197d5cfb21df6cbb2fa7ef1c9262206b062c315b9d04da746d0b37dfbc7d',
@@ -30,7 +46,7 @@ export class DouyinPlatform extends BasePlatform {
     };
 
     try {
-      const webRid = url.split('?')[0].split('live.douyin.com/').pop();
+      const webRid = url.split('?')[0].split('live.douyin.com/').pop() || '';
       const params = new URLSearchParams({
         aid: '6383', app_name: 'douyin_web', live_id: '1',
         device_platform: 'web', language: 'zh-CN', browser_language: 'zh-CN',
@@ -53,11 +69,18 @@ export class DouyinPlatform extends BasePlatform {
 
       return this._parseStreamUrl(roomData, quality, proxyAddr);
     } catch (e) {
-      logger.error(`Douyin web error: ${e.message}`);
+      logger.error(`Douyin web error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
 
+  /**
+   * @param {string} url
+   * @param {string | null} proxyAddr
+   * @param {string} cookies
+   * @param {string} quality
+   * @returns {Promise<StreamInfo>}
+   */
   async _getAppStreamData(url, proxyAddr, cookies, quality) {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
@@ -87,8 +110,8 @@ export class DouyinPlatform extends BasePlatform {
 
       const appParams = new URLSearchParams({
         verifyFp: 'verify_hwj52020_7szNlAB7_pxNY_48Vh_ALKF_GA1Uf3yteoOY',
-        type_id: '0', live_id: '1', room_id: roomId,
-        sec_user_id: secUserId, version_code: '99.99.99', app_id: '1128'
+        type_id: '0', live_id: '1', room_id: roomId || '',
+        sec_user_id: secUserId || '', version_code: '99.99.99', app_id: '1128'
       });
 
       let api2 = `https://webcast.amemv.com/webcast/room/reflow/info/?${appParams.toString()}`;
@@ -106,13 +129,20 @@ export class DouyinPlatform extends BasePlatform {
 
       return this._parseStreamUrl(roomData, quality, proxyAddr);
     } catch (e) {
-      logger.error(`Douyin app error: ${e.message}`);
+      logger.error(`Douyin app error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
 
+  /**
+   * @param {any} jsonData
+   * @param {string} videoQuality
+   * @param {string | null} proxyAddr
+   * @returns {Promise<StreamInfo>}
+   */
   async _parseStreamUrl(jsonData, videoQuality, proxyAddr) {
     const anchorName = jsonData.anchor_name;
+    /** @type {StreamInfo} */
     const result = { anchor_name: anchorName, is_live: false };
     const status = jsonData.status ?? 4;
 
@@ -124,7 +154,9 @@ export class DouyinPlatform extends BasePlatform {
 
       const flvUrlDict = streamUrl.flv_pull_url || {};
       const m3u8UrlDict = streamUrl.hls_pull_url_map || {};
+      /** @type {string[]} */
       let flvUrlList = Object.values(flvUrlDict);
+      /** @type {string[]} */
       let m3u8UrlList = Object.values(m3u8UrlDict);
 
       while (flvUrlList.length < 5) flvUrlList.push(flvUrlList[flvUrlList.length - 1]);

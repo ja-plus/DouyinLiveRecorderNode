@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Configuration manager - reads and writes INI config files
  */
@@ -5,6 +6,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ini from 'ini';
 import { fileURLToPath } from 'node:url';
+
+/** @typedef {import('../types.js').IniConfig} IniConfig */
+/** @typedef {import('../types.js').AppSettings} AppSettings */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = path.resolve(__dirname, '../..');
@@ -18,6 +22,11 @@ const TEXT_ENCODING = 'utf-8';
 
 /**
  * Read a config value from INI file
+ * @param {IniConfig} configObj
+ * @param {string} section
+ * @param {string} key
+ * @param {string | number | boolean} defaultValue
+ * @returns {any}
  */
 export function readConfigValue(configObj, section, key, defaultValue) {
   if (!configObj[section]) {
@@ -32,6 +41,8 @@ export function readConfigValue(configObj, section, key, defaultValue) {
 
 /**
  * Load config from file
+ * @param {string} [filePath]
+ * @returns {IniConfig}
  */
 export function loadConfig(filePath = CONFIG_FILE) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -45,6 +56,9 @@ export function loadConfig(filePath = CONFIG_FILE) {
 
 /**
  * Save config to file
+ * @param {IniConfig} configObj
+ * @param {string} [filePath]
+ * @returns {void}
  */
 export function saveConfig(configObj, filePath = CONFIG_FILE) {
   const content = ini.stringify(configObj);
@@ -53,6 +67,11 @@ export function saveConfig(configObj, filePath = CONFIG_FILE) {
 
 /**
  * Update a single config value
+ * @param {string} filePath
+ * @param {string} section
+ * @param {string} key
+ * @param {string} newValue
+ * @returns {void}
  */
 export function updateConfig(filePath, section, key, newValue) {
   const config = loadConfig(filePath);
@@ -65,14 +84,23 @@ export function updateConfig(filePath, section, key, newValue) {
 
 /**
  * Parse boolean from Chinese yes/no
+ * @param {any} value
+ * @param {boolean} [defaultVal]
+ * @returns {boolean}
  */
 export function parseBool(value, defaultVal = false) {
+  /** @type {Record<string, boolean>} */
   const options = { '是': true, '否': false };
   return options[value] ?? defaultVal;
 }
 
 /**
  * Update file content - replace old string with new string
+ * @param {string} filePath
+ * @param {string} oldStr
+ * @param {string} newStr
+ * @param {string | null} [startStr]
+ * @returns {string}
  */
 export function updateFile(filePath, oldStr, newStr, startStr = null) {
   if (oldStr === newStr && !startStr) return oldStr;
@@ -80,6 +108,7 @@ export function updateFile(filePath, oldStr, newStr, startStr = null) {
 
   const content = fs.readFileSync(filePath, TEXT_ENCODING);
   const lines = content.split('\n');
+  /** @type {string[]} */
   const fileData = [];
 
   for (let line of lines) {
@@ -100,6 +129,10 @@ export function updateFile(filePath, oldStr, newStr, startStr = null) {
 
 /**
  * Delete a line from file
+ * @param {string} filePath
+ * @param {string} delLine
+ * @param {boolean} [deleteAll]
+ * @returns {void}
  */
 export function deleteLine(filePath, delLine, deleteAll = false) {
   if (!fs.existsSync(filePath)) return;
@@ -125,6 +158,10 @@ export function deleteLine(filePath, delLine, deleteAll = false) {
 
 /**
  * Backup file with timestamp
+ * @param {string} filePath
+ * @param {string} [backupDirPath]
+ * @param {number} [limitCounts]
+ * @returns {void}
  */
 export function backupFile(filePath, backupDirPath = BACKUP_DIR, limitCounts = 6) {
   try {
@@ -145,19 +182,21 @@ export function backupFile(filePath, backupDirPath = BACKUP_DIR, limitCounts = 6
 
     while (files.length > limitCounts) {
       const oldest = files.shift();
-      fs.unlinkSync(path.join(backupDirPath, oldest));
+      if (oldest) fs.unlinkSync(path.join(backupDirPath, oldest));
     }
   } catch (e) {
-    console.error(`备份配置文件 ${filePath} 失败：${e.message}`);
+    console.error(`备份配置文件 ${filePath} 失败：${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
 /**
  * Load all application settings from config
+ * @returns {AppSettings}
  */
 export function loadAppSettings() {
   const config = loadConfig();
 
+  /** @type {any} */
   const settings = {
     language: readConfigValue(config, '录制设置', 'language(zh_cn/en)', 'zh_cn'),
     skipProxyCheck: parseBool(readConfigValue(config, '录制设置', '是否跳过代理检测(是/否)', '否')),
@@ -310,10 +349,10 @@ export function loadAppSettings() {
   // Proxy settings
   settings.proxyAddr = settings.useProxy ? (settings.proxyAddr || null) : null;
   settings.enableProxyPlatformList = settings.enableProxyPlatform
-    ? settings.enableProxyPlatform.replace('，', ',').split(',').map(s => s.trim())
+    ? settings.enableProxyPlatform.replace('，', ',').split(',').map(/** @param {string} s */ (s) => s.trim())
     : [];
   settings.extraEnableProxyPlatformList = settings.extraEnableProxy
-    ? settings.extraEnableProxy.replace('，', ',').split(',').map(s => s.trim())
+    ? settings.extraEnableProxy.replace('，', ',').split(',').map(/** @param {string} s */ (s) => s.trim())
     : [];
 
   // 仅当补充了缺失配置项时才回写文件（主循环会周期性重新加载配置）
@@ -325,5 +364,5 @@ export function loadAppSettings() {
     fs.writeFileSync(CONFIG_FILE, newContent, TEXT_ENCODING);
   }
 
-  return settings;
+  return /** @type {AppSettings} */ (settings);
 }

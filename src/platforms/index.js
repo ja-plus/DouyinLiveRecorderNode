@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Generic platform handler - covers multiple platforms with similar patterns
  * Includes: Bilibili, Huya, Kuaishou, Douyu, YY, and many others
@@ -8,11 +9,29 @@ import { getQualityIndex } from '../utils/index.js';
 import logger from '../logger.js';
 import crypto from 'node:crypto';
 
+/** @typedef {import('../types.js').StreamInfo} StreamInfo */
+/** @typedef {import('../types.js').StreamInfoOptions} StreamInfoOptions */
+
+/**
+ * GenericPlatform 构造配置
+ * @typedef {Object} GenericPlatformConfig
+ * @property {string} name - 平台名
+ * @property {string[]} patterns - URL 匹配关键字列表
+ * @property {boolean} [requiresProxy] - 是否需要代理
+ * @property {(url: string, options: StreamInfoOptions) => Promise<StreamInfo>} [handler] - 自定义获取直播信息逻辑
+ */
+
 // ============ Bilibili ============
 export class BilibiliPlatform extends BasePlatform {
   get name() { return 'B站直播'; }
+  /** @param {string} url */
   match(url) { return url.includes('live.bilibili.com/'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36',
@@ -42,6 +61,7 @@ export class BilibiliPlatform extends BasePlatform {
       }
 
       // Get stream URL
+      /** @type {Record<string, string>} */
       const qualityMap = { OD: '10000', BD: '400', UHD: '250', HD: '150', SD: '80', LD: '80' };
       const qn = qualityMap[quality] || '10000';
       const playApi = `https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=${roomId}&protocol=0,1&format=0,1,2&codec=0,1&qn=${qn}&platform=web&ptype=8`;
@@ -77,7 +97,7 @@ export class BilibiliPlatform extends BasePlatform {
         record_url: playUrl
       };
     } catch (e) {
-      logger.error(`Bilibili error: ${e.message}`);
+      logger.error(`Bilibili error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
@@ -86,8 +106,14 @@ export class BilibiliPlatform extends BasePlatform {
 // ============ Huya ============
 export class HuyaPlatform extends BasePlatform {
   get name() { return '虎牙直播'; }
+  /** @param {string} url */
   match(url) { return url.includes('www.huya.com/'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile Safari/537.36',
@@ -134,11 +160,16 @@ export class HuyaPlatform extends BasePlatform {
         record_url: finalFlvUrl || finalM3u8Url
       };
     } catch (e) {
-      logger.error(`Huya error: ${e.message}`);
+      logger.error(`Huya error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
 
+  /**
+   * @param {string} oldAntiCode
+   * @param {string} streamName
+   * @returns {string}
+   */
   _getAntiCode(oldAntiCode, streamName) {
     const paramsT = 100;
     const sdkVersion = 2403051612;
@@ -166,8 +197,14 @@ export class HuyaPlatform extends BasePlatform {
 // ============ Kuaishou ============
 export class KuaishouPlatform extends BasePlatform {
   get name() { return '快手直播'; }
+  /** @param {string} url */
   match(url) { return url.includes('live.kuaishou.com/'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36',
@@ -192,7 +229,7 @@ export class KuaishouPlatform extends BasePlatform {
 
       return { anchor_name: anchorName, is_live: true, quality, record_url: '' };
     } catch (e) {
-      logger.error(`Kuaishou error: ${e.message}`);
+      logger.error(`Kuaishou error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
@@ -201,8 +238,14 @@ export class KuaishouPlatform extends BasePlatform {
 // ============ Douyu ============
 export class DouyuPlatform extends BasePlatform {
   get name() { return '斗鱼直播'; }
+  /** @param {string} url */
   match(url) { return url.includes('www.douyu.com/'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36',
@@ -229,7 +272,7 @@ export class DouyuPlatform extends BasePlatform {
         record_url: '' // Douyu requires JS crypto for stream URL
       };
     } catch (e) {
-      logger.error(`Douyu error: ${e.message}`);
+      logger.error(`Douyu error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
@@ -238,8 +281,14 @@ export class DouyuPlatform extends BasePlatform {
 // ============ YY ============
 export class YYPlatform extends BasePlatform {
   get name() { return 'YY直播'; }
+  /** @param {string} url */
   match(url) { return url.includes('www.yy.com/'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36',
@@ -269,7 +318,7 @@ export class YYPlatform extends BasePlatform {
         record_url: flvUrl
       };
     } catch (e) {
-      logger.error(`YY error: ${e.message}`);
+      logger.error(`YY error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
@@ -280,8 +329,14 @@ export class TiktokPlatform extends BasePlatform {
   get name() { return 'TikTok直播'; }
   get requiresProxy() { return true; }
   get prefersFlv() { return true; }
+  /** @param {string} url */
   match(url) { return url.includes('https://www.tiktok.com/'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
     const headers = {
       referer: 'https://www.tiktok.com/',
@@ -341,7 +396,7 @@ export class TiktokPlatform extends BasePlatform {
         record_url: m3u8Url || flvUrl
       };
     } catch (e) {
-      logger.error(`TikTok error: ${e.message}`);
+      logger.error(`TikTok error: ${e instanceof Error ? e.message : String(e)}`);
       return { anchor_name: '', is_live: false };
     }
   }
@@ -350,9 +405,16 @@ export class TiktokPlatform extends BasePlatform {
 // ============ Generic/Custom Stream ============
 export class CustomStreamPlatform extends BasePlatform {
   get name() { return '自定义录制直播'; }
+  /** @param {string} url */
   match(url) { return url.includes('.m3u8') || url.includes('.flv'); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [param1]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, { quality = 'OD' } = {}) {
+    /** @type {StreamInfo} */
     const result = {
       anchor_name: `自定义录制_${crypto.randomUUID().slice(0, 8)}`,
       is_live: true,
@@ -369,18 +431,32 @@ export class CustomStreamPlatform extends BasePlatform {
 
 // ============ Generic platform for remaining 40+ platforms ============
 export class GenericPlatform extends BasePlatform {
+  /**
+   * @param {import('../types.js').AppSettings} settings
+   * @param {GenericPlatformConfig} platformConfig
+   */
   constructor(settings, platformConfig) {
     super(settings);
+    /** @type {string} */
     this._name = platformConfig.name;
+    /** @type {string[]} */
     this._matchPatterns = platformConfig.patterns;
+    /** @type {boolean} */
     this._requiresProxy = platformConfig.requiresProxy || false;
+    /** @type {GenericPlatformConfig['handler']} */
     this._apiHandler = platformConfig.handler;
   }
 
   get name() { return this._name; }
   get requiresProxy() { return this._requiresProxy; }
+  /** @param {string} url */
   match(url) { return this._matchPatterns.some(p => url.includes(p)); }
 
+  /**
+   * @param {string} url
+   * @param {StreamInfoOptions} [options]
+   * @returns {Promise<StreamInfo>}
+   */
   async getStreamInfo(url, options = {}) {
     if (this._apiHandler) {
       return this._apiHandler(url, options);
