@@ -328,7 +328,7 @@ export async function startServer(options = {}) {
   // Register CORS
   await app.register(fastifyCors, {
     origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type']
   });
 
@@ -418,6 +418,37 @@ export async function startServer(options = {}) {
         return { success: false, error: '缺少参数 name（主播名）' };
       }
       return { success: true, items: listRecordings(name) };
+    } catch (e) {
+      reply.code(500);
+      return { success: false, error: e.message };
+    }
+  });
+
+  // DELETE /api/recordings - 删除指定录制文件（body: { file: 相对录制根目录的路径 }）
+  app.delete('/api/recordings', async (request, reply) => {
+    try {
+      const file = String(request.body?.file || '').trim();
+      if (!file) {
+        reply.code(400);
+        return { success: false, error: '缺少参数 file' };
+      }
+      const baseDir = getDownloadsDir();
+      const fullPath = path.resolve(baseDir, file);
+      // 防路径穿越：必须仍位于录制根目录内，且为受支持的视频扩展名
+      if (fullPath !== baseDir && !fullPath.startsWith(baseDir + path.sep)) {
+        reply.code(400);
+        return { success: false, error: '非法路径' };
+      }
+      if (!VIDEO_EXTS.has(path.extname(fullPath).toLowerCase())) {
+        reply.code(400);
+        return { success: false, error: '不支持的文件类型' };
+      }
+      if (!fs.existsSync(fullPath)) {
+        reply.code(404);
+        return { success: false, error: '文件不存在' };
+      }
+      fs.unlinkSync(fullPath);
+      return { success: true };
     } catch (e) {
       reply.code(500);
       return { success: false, error: e.message };

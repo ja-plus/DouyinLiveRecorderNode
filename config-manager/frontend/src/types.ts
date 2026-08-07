@@ -108,6 +108,8 @@ export interface RecordingRow extends RecordingItem {
 /** 通过 provide/inject 提供给录像列表单元格的操作方法 */
 export interface RecordingActions {
   play: (row: RecordingItem) => void;
+  /** 删除该录制文件 */
+  remove: (row: RecordingItem) => void;
 }
 
 export const RECORDING_ACTIONS_KEY = 'recordingActions';

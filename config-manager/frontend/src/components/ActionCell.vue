@@ -8,7 +8,7 @@
       <template #unchecked>注释</template>
     </a-switch>
     <a-tooltip content="查看已录制文件">
-      <a-button size="mini" type="text" @click="actions?.openRecordings(row)">
+      <a-button type="text" @click="actions?.openRecordings(row)">
         <template #icon><icon-video-camera /></template>
       </a-button>
     </a-tooltip>

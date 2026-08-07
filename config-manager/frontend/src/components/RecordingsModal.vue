@@ -1,10 +1,28 @@
 <template>
-  <a-modal :visible="visible" :title="`已录制文件 - ${anchorName}`" :footer="false" modal-class="recordings-modal"
-    unmount-on-close @update:visible="onVisibleChange" @close="onListClose">
+  <a-modal
+    :visible="visible"
+    :title="`已录制文件 - ${anchorName}`"
+    :footer="false"
+    modal-class="recordings-modal"
+    unmount-on-close
+    @update:visible="onVisibleChange"
+    @close="onListClose"
+  >
     <a-spin :loading="loading" class="rec-spin">
       <div class="rec-table-wrap">
-        <StkTable class="rec-table" row-key="id" :theme="isDark ? 'dark' : 'light'" :columns="columns"
-          :data-source="items" :row-height="40" no-data-full fixed-col-shadow bordered stripe virtual>
+        <StkTable
+          class="rec-table"
+          row-key="id"
+          :theme="isDark ? 'dark' : 'light'"
+          :columns="columns"
+          :data-source="items"
+          :row-height="40"
+          no-data-full
+          fixed-col-shadow
+          bordered
+          stripe
+          virtual
+        >
           <template #empty>
             <div>未找到该主播的录制文件</div>
           </template>
@@ -14,8 +32,14 @@
   </a-modal>
 
   <!-- 播放器弹窗 -->
-  <a-modal v-model:visible="playerVisible" :title="playing?.name || '播放'" :footer="false" modal-class="player-modal"
-    unmount-on-close @close="stopPlay">
+  <a-modal
+    v-model:visible="playerVisible"
+    :title="playing?.name || '播放'"
+    :footer="false"
+    modal-class="player-modal"
+    unmount-on-close
+    @close="stopPlay"
+  >
     <video ref="videoRef" class="player-video" controls autoplay playsinline />
   </a-modal>
 </template>
@@ -41,14 +65,20 @@ const items = ref<RecordingRow[]>([]);
 const loading = ref(false);
 
 const columns: StkTableColumn<RecordingRow>[] = [
-  { type: "seq", title: "", dataIndex: "" as never, width: 40, align: "center" },
+  {
+    type: "seq",
+    title: "",
+    dataIndex: "" as never,
+    width: 40,
+    align: "center",
+  },
   { title: "文件名", dataIndex: "name", minWidth: 240 },
   { title: "大小", dataIndex: "sizeText", width: 90, align: "right" },
   { title: "录制时间", dataIndex: "timeText", width: 160 },
   {
     title: "操作",
     dataIndex: "_action" as never,
-    width: 80,
+    width: 120,
     align: "center",
     fixed: "right",
     customCell: markRaw(RecordingActionCell),
@@ -167,7 +197,24 @@ function stopPlay(): void {
   playing.value = null;
 }
 
-provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play });
+// ==== 删除 ====
+async function remove(row: RecordingItem): Promise<void> {
+  try {
+    const res = await fetch("/api/recordings", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: row.file }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "未知错误");
+    items.value = items.value.filter((it) => it.id !== row.id);
+    Message.success("已删除: " + row.name);
+  } catch (e) {
+    Message.error("删除失败: " + (e as Error).message);
+  }
+}
+
+provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play, remove });
 </script>
 
 <style>
