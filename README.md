@@ -9,7 +9,7 @@
 
 ## 环境要求
 
-- [Node.js](https://nodejs.org/) >= 18.0.0
+- [Node.js](https://nodejs.org/) >= 18.0.0，或使用 [Bun](https://bun.com/)（兼容 Node.js，且内存占用更小，推荐）
 - [FFmpeg](https://ffmpeg.org/download.html)（需加入系统 PATH，录制依赖）
 
 ## 快速开始
@@ -20,6 +20,8 @@
 npm install
 # 或
 pnpm install
+# 或使用 bun
+bun install
 ```
 
 ### 2. 添加录制地址
@@ -46,6 +48,12 @@ https://live.douyin.com/123456789
 
 ```bash
 npm start
+```
+
+使用 Bun 运行（内存占用相比 Node 更小）：
+
+```bash
+bun main.js
 ```
 
 启动后会自动开启循环监测，主播开播即自动录制。录制文件默认保存在 `downloads/` 目录下，按平台/主播分类存放。
