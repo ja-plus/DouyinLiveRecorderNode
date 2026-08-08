@@ -7,6 +7,7 @@
         <span>DLR 管理台</span>
       </div>
       <a-menu
+        v-if="!isMobile"
         class="topbar-menu"
         mode="horizontal"
         :selected-keys="selectedKeys"
@@ -16,14 +17,40 @@
         <a-menu-item key="appConfig">系统配置</a-menu-item>
         <!-- 后续扩展页面在此添加菜单项，key 与路由 name 保持一致 -->
       </a-menu>
-      <a-button v-if="loginEnabled" type="text" @click="signOut">
+      <a-button v-if="loginEnabled" class="logout-button" type="text" @click="signOut">
         <template #icon><icon-export /></template>
+        退出登录
       </a-button>
     </a-layout-header>
 
     <a-layout-content class="content">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <Transition :name="routeTransition" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </router-view>
     </a-layout-content>
+
+    <nav v-if="isMobile" class="mobile-nav" aria-label="主导航">
+      <button
+        type="button"
+        :class="{ active: route.name === 'urlConfig' }"
+        :aria-current="route.name === 'urlConfig' ? 'page' : undefined"
+        @click="onMenuItemClick('urlConfig')"
+      >
+        <icon-video-camera />
+        <span>直播间管理</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: route.name === 'appConfig' }"
+        :aria-current="route.name === 'appConfig' ? 'page' : undefined"
+        @click="onMenuItemClick('appConfig')"
+      >
+        <icon-settings />
+        <span>系统配置</span>
+      </button>
+    </nav>
   </a-layout>
 </template>
 
@@ -31,11 +58,13 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getAuthStatus, logout } from './auth';
+import { isMobile } from './composables/useMobile';
 
 const route = useRoute();
 const router = useRouter();
 
 const selectedKeys = computed(() => [String(route.name ?? '')]);
+const routeTransition = computed(() => route.name === 'appConfig' ? 'route-forward' : 'route-back');
 const loginEnabled = ref(false);
 
 onMounted(async () => {
@@ -107,6 +136,9 @@ body[arco-theme='dark'] {
   min-width: 0;
   background: transparent;
 }
+.logout-button {
+  margin-left: auto;
+}
 
 /* 移动端：压缩间距和菜单项内边距，保证顶栏单行摆下 */
 @media (max-width: 640px) {
@@ -120,10 +152,36 @@ body[arco-theme='dark'] {
     gap: 6px;
   }
 
-  .topbar-menu :deep(.arco-menu-item) {
-    padding: 0 8px;
-    margin: 0 2px;
-  }
+}
+
+.mobile-nav {
+  display: flex;
+  flex: none;
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
+  background: var(--color-bg-2, #fff);
+  border-top: 1px solid var(--color-border-2, #e5e6eb);
+}
+.mobile-nav button {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  color: var(--color-text-2, #4e5969);
+  font: inherit;
+  font-size: 12px;
+  background: none;
+  border: 0;
+}
+.mobile-nav button.active {
+  color: rgb(var(--primary-6, 22, 93, 255));
+}
+.mobile-nav :deep(.arco-icon) {
+  font-size: 20px;
 }
 
 /* 超窄屏：只留品牌图标，把空间让给菜单 */
@@ -140,5 +198,33 @@ body[arco-theme='dark'] {
   flex-direction: column;
   /* 普通长页面（如系统配置）在此容器内滚动 */
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.route-forward-enter-active,
+.route-forward-leave-active,
+.route-back-enter-active,
+.route-back-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.route-forward-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+.route-forward-leave-to {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+.route-back-enter-from {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+.route-back-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
 }
 </style>

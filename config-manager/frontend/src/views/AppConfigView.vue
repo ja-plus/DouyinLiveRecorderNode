@@ -17,7 +17,53 @@
         </div>
 
         <a-spin :loading="loading" class="spin-wrap">
-            <a-tabs v-if="sections.length" type="rounded" size="large">
+            <div v-if="isMobile" class="mobile-settings">
+                <Transition :name="mobileTransition" mode="out-in">
+                    <nav v-if="!mobileSection" key="menu" class="mobile-section-menu" aria-label="配置分区">
+                        <button v-for="sec in sections" :key="sec.name" type="button" @click="openMobileSection(sec.name)">
+                            <span>{{ sec.name }}</span>
+                            <icon-right />
+                        </button>
+                    </nav>
+
+                    <div v-else-if="activeMobileSection" key="section" class="mobile-section">
+                        <a-button class="mobile-back" type="text" @click="closeMobileSection">
+                            <template #icon><icon-left /></template>
+                            所有设置
+                        </a-button>
+                        <div class="mobile-section-title">{{ activeMobileSection.name }}</div>
+                        <a-form :model="activeMobileSection" layout="vertical" class="section-form">
+                            <a-form-item
+                                v-for="item in activeMobileSection.items"
+                                :key="item.key"
+                                :label="item.key"
+                                :class="{ 'span-all': controlOf(item) === 'textarea' }"
+                            >
+                                <a-switch
+                                    v-if="controlOf(item) === 'switch'"
+                                    :model-value="item.value === '是'"
+                                    @change="(v: string | number | boolean) => (item.value = v ? '是' : '否')"
+                                >
+                                    <template #checked>是</template>
+                                    <template #unchecked>否</template>
+                                </a-switch>
+                                <a-select v-else-if="controlOf(item) === 'select'" v-model="item.value" :options="optionsOf(item)" allow-clear />
+                                <a-input-number
+                                    v-else-if="controlOf(item) === 'number'"
+                                    :model-value="item.value === '' ? undefined : Number(item.value)"
+                                    :placeholder="item.key"
+                                    @update:model-value="(v?: number) => (item.value = v == null ? '' : String(v))"
+                                />
+                                <a-textarea v-else-if="controlOf(item) === 'textarea'" v-model="item.value" :auto-size="{ minRows: 2, maxRows: 6 }" allow-clear />
+                                <a-input-password v-else-if="controlOf(item) === 'password'" v-model="item.value" allow-clear />
+                                <a-input v-else v-model="item.value" allow-clear />
+                            </a-form-item>
+                        </a-form>
+                    </div>
+                </Transition>
+            </div>
+
+            <a-tabs v-else-if="sections.length" type="rounded" size="large">
                 <a-tab-pane v-for="sec in sections" :key="sec.name" :title="sec.name">
                     <a-form :model="sec" layout="vertical" class="section-form">
                         <a-form-item
@@ -73,10 +119,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
+import { useRoute, useRouter } from 'vue-router';
 import http from '../http';
 import { API } from '../api';
+import { isMobile } from '../composables/useMobile';
 import type {
     ApiGetAppConfigResp,
     ApiSaveConfigResp,
@@ -87,8 +135,28 @@ import type {
 const sections = ref<AppConfigSection[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const route = useRoute();
+const router = useRouter();
+const mobileTransition = ref('mobile-forward');
 
 const totalCount = computed(() => sections.value.reduce((n, s) => n + s.items.length, 0));
+const mobileSection = computed(() => {
+    const section = route.query.section;
+    return typeof section === 'string' ? section : null;
+});
+const activeMobileSection = computed(() => sections.value.find((section) => section.name === mobileSection.value));
+
+async function openMobileSection(name: string): Promise<void> {
+    mobileTransition.value = 'mobile-forward';
+    await router.push({ name: 'appConfig', query: { ...route.query, section: name } });
+}
+
+async function closeMobileSection(): Promise<void> {
+    mobileTransition.value = 'mobile-back';
+    const query = { ...route.query };
+    delete query.section;
+    await router.replace({ name: 'appConfig', query });
+}
 
 type ControlType = 'switch' | 'select' | 'number' | 'textarea' | 'password' | 'input';
 
@@ -155,6 +223,14 @@ async function save(): Promise<void> {
 const contentSnapshot = computed(() => JSON.stringify(sections.value));
 const savedSnapshot = ref(contentSnapshot.value);
 const dirty = computed(() => contentSnapshot.value !== savedSnapshot.value);
+
+watch(
+    () => route.query.section,
+    (next, previous) => {
+        if (previous && !next) mobileTransition.value = 'mobile-back';
+        if (!previous && next) mobileTransition.value = 'mobile-forward';
+    },
+);
 
 onMounted(load);
 </script>
@@ -230,6 +306,93 @@ onMounted(load);
 @media (max-width: 800px) {
     .section-form {
         grid-template-columns: 1fr;
+    }
+}
+
+.mobile-section-menu {
+    display: flex;
+    flex-direction: column;
+}
+
+.mobile-section-menu button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 52px;
+    padding: 0 4px;
+    color: var(--color-text-1, #1d2129);
+    font: inherit;
+    font-size: 15px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--color-border-2, #e5e6eb);
+}
+
+.mobile-section-menu button:last-child {
+    border-bottom: 0;
+}
+
+.mobile-section-menu :deep(.arco-icon) {
+    color: var(--color-text-3, #86909c);
+}
+
+.mobile-back {
+    margin: -4px 0 8px -8px;
+}
+
+.mobile-section-title {
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-1, #1d2129);
+}
+
+.mobile-forward-enter-active,
+.mobile-forward-leave-active,
+.mobile-back-enter-active,
+.mobile-back-leave-active {
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.mobile-forward-enter-from {
+    opacity: 0;
+    transform: translateX(12px);
+}
+
+.mobile-forward-leave-to {
+    opacity: 0;
+    transform: translateX(-12px);
+}
+
+.mobile-back-enter-from {
+    opacity: 0;
+    transform: translateX(-12px);
+}
+
+.mobile-back-leave-to {
+    opacity: 0;
+    transform: translateX(12px);
+}
+
+@media (max-width: 640px) {
+    .page {
+        padding: 16px;
+    }
+
+    .title {
+        font-size: 18px;
+    }
+
+    .spin-wrap {
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .section-form :deep(.arco-input-number) {
+        max-width: none;
     }
 }
 </style>
