@@ -107,6 +107,7 @@ async function load(): Promise<void> {
   try {
     const res = await fetch(
       `/api/recordings?name=${encodeURIComponent(props.anchorName)}`,
+      { credentials: "include" },
     );
     const data: ApiRecordingsResp = await res.json();
     if (!data.success) throw new Error(data.error || "未知错误");
@@ -202,6 +203,7 @@ async function remove(row: RecordingItem): Promise<void> {
   try {
     const res = await fetch("/api/recordings", {
       method: "DELETE",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file: row.file }),
     });

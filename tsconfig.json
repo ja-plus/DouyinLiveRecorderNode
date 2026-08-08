@@ -13,10 +13,12 @@
     "allowJs": true,
     "checkJs": true,
     "esModuleInterop": true,
+    // config-manager 使用 NestJS 装饰器；Bun 按 cwd 读取 tsconfig，需在根配置开启 legacy 装饰器
+    "experimentalDecorators": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["main.js", "src/**/*.js", "config-manager/server.js", "config-manager/config.js"],
+  "include": ["main.js", "src/**/*.js"],
   "exclude": ["node_modules", "config-manager/frontend", "config-manager/static"]
 }

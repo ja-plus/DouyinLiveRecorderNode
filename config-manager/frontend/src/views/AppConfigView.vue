@@ -123,7 +123,7 @@ function optionsOf(item: AppConfigItem): string[] {
 async function load(): Promise<void> {
     loading.value = true;
     try {
-        const res = await fetch(API);
+        const res = await fetch(API, { credentials: 'include' });
         const data: ApiGetAppConfigResp = await res.json();
         if (!data.success) throw new Error(data.error || '未知错误');
         sections.value = data.sections || [];
@@ -141,6 +141,7 @@ async function save(): Promise<void> {
     try {
         const res = await fetch(API, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sections: sections.value }),
         });

@@ -15,16 +15,26 @@
  *   port         Web 管理台监听端口 (1-65535)
  *   certPath     TLS 证书 PEM 路径；相对路径以项目根目录 (DouyinLiveRecorderNode) 为基准，也可写绝对路径
  *   keyPath      TLS 私钥 PEM 路径；同上
+ *   enableLogin  是否启用管理台登录保护；启用后必须同时配置下述账号、密码与密钥
+ *   loginUsername 登录用户名
+ *   loginPassword 登录密码
+ *   authSecret   用于签发登录 Cookie 的高强度随机字符串（建议至少 32 个字符）
+ *   authCookieMaxAgeDays Cookie 有效天数，默认 30 天
  *
- * 配置变更后，重启 npm start / node config-manager/server.js 生效。
+ * 配置变更后，重启 pnpm run config-manager（或 bun:config-manager）生效。
  */
-/** @type {import('../src/types.js').ConfigManagerSettings} */
+/** @type {import('./src/common/settings.js').ServerSettings} */
 export default {
   enableHttp2: false,
   host: '0.0.0.0',
   port: 5000,
   certPath: "config/cert.pem",
   keyPath: "config/key.pem",
+  enableLogin: true,
+  loginUsername: 'admin',
+  loginPassword: 'admin',
+  authSecret: '78f654006c8e8538a7e3574679a903958ab1db99d7d67aeb46a612ce1b7b3eb7',
+  authCookieMaxAgeDays: 30,
   // certPath: './server.crt',
   // keyPath: './server.key'
 };

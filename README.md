@@ -92,6 +92,22 @@ http://127.0.0.1:5000
 npm run config-manager
 ```
 
+### 管理台登录保护
+
+默认不启用登录。需要保护管理台时，在 `config-manager/config.js` 中配置账号、密码和至少 32 个字符的随机密钥：
+
+```js
+export default {
+  enableLogin: true,
+  loginUsername: 'admin',
+  loginPassword: '请替换为强密码',
+  authSecret: '请替换为至少32个字符的随机密钥',
+  authCookieMaxAgeDays: 30,
+};
+```
+
+登录状态保存在 `HttpOnly` Cookie 中，到期前无需重复登录。对外暴露管理台时应同时启用 HTTPS。
+
 ### 启用 HTTPS / HTTP/2
 
 管理台默认以 HTTP/1.1 明文运行。如需启用 HTTP/2（浏览器要求必须搭配 TLS），编辑 `config-manager/config.js`：

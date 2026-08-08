@@ -1,4 +1,4 @@
-/**
+/*
  * Shared JSDoc type definitions (no runtime code)
  * 供 checkJs 类型检查使用，各模块通过
  * `/** @typedef {import('../types.js').Xxx} Xxx *\/` 引入
@@ -130,16 +130,6 @@
 /**
  * 录制停止检测回调：返回 true 表示应停止录制
  * @typedef {() => boolean} StopChecker
- */
-
-/**
- * config-manager 服务配置（config-manager/config.js 导出对象）
- * @typedef {Object} ConfigManagerSettings
- * @property {boolean} enableHttp2
- * @property {string} host
- * @property {number} port
- * @property {string} certPath
- * @property {string} keyPath
  */
 
 export {};

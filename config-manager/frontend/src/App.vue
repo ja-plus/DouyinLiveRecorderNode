@@ -1,5 +1,6 @@
 <template>
-  <a-layout class="layout">
+  <router-view v-if="route.name === 'login'" />
+  <a-layout v-else class="layout">
     <a-layout-header class="topbar">
       <div class="brand">
         <icon-video-camera class="brand-icon" />
@@ -15,6 +16,9 @@
         <a-menu-item key="appConfig">系统配置</a-menu-item>
         <!-- 后续扩展页面在此添加菜单项，key 与路由 name 保持一致 -->
       </a-menu>
+      <a-button v-if="loginEnabled" type="text" @click="signOut">
+        <template #icon><icon-export /></template>
+      </a-button>
     </a-layout-header>
 
     <a-layout-content class="content">
@@ -24,18 +28,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { getAuthStatus, logout } from './auth';
 
 const route = useRoute();
 const router = useRouter();
 
 const selectedKeys = computed(() => [String(route.name ?? '')]);
+const loginEnabled = ref(false);
+
+onMounted(async () => {
+  loginEnabled.value = (await getAuthStatus()).loginEnabled;
+});
 
 function onMenuItemClick(key: string): void {
   if (key !== route.name) {
     router.push({ name: key });
   }
+}
+
+async function signOut(): Promise<void> {
+  await logout();
+  await router.replace({ name: 'login' });
 }
 </script>
 

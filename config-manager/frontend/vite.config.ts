@@ -58,6 +58,8 @@ export default defineConfig({
     // 构建产物直接输出到后端静态目录，启动 Fastify 即可访问，无需单独起前端服务
     outDir: '../static',
     emptyOutDir: true,
+    // 打包生成 sourcemap，便于线上定位问题
+    sourcemap: true,
   },
   plugins: [
     vue(),

@@ -1,4 +1,6 @@
 node_modules/
+config-manager/dist/
+config-manager/.config-manager.pid
 logs/
 downloads/
 backup_config/

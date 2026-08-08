@@ -210,7 +210,7 @@ const columns: StkTableColumn<UrlRow>[] = [
 async function load(): Promise<void> {
   loading.value = true;
   try {
-    const res = await fetch(API);
+    const res = await fetch(API, { credentials: "include" });
     const data: ApiGetConfigResp = await res.json();
     if (!data.success) throw new Error(data.error || "未知错误");
     if (Array.isArray(data.qualities) && data.qualities.length) {
@@ -340,6 +340,7 @@ async function save(): Promise<void> {
     };
     const res = await fetch(API, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
