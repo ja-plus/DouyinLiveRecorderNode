@@ -157,6 +157,8 @@ body[arco-theme='dark'] {
 .mobile-nav {
   display: flex;
   flex: none;
+  height: 56px;
+  padding-bottom: 0;
   height: calc(56px + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   box-sizing: border-box;
