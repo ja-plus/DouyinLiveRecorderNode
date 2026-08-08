@@ -499,6 +499,8 @@ function parseUrlConfig() {
 
     if (!['原画', '蓝光', '超清', '高清', '标清', '流畅'].includes(quality)) quality = '原画';
     if (!url) continue;
+    // 移动端分享文案中只保留抖音短链，避免将整段文案作为请求地址。
+    url = url.match(/(?:https?:\/\/)?v\.douyin\.com\/[^\s/?#]+\/?/i)?.[0] || url;
     if (urlLineList.has(url)) continue;
     urlLineList.add(url);
 

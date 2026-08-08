@@ -93,12 +93,16 @@
     >
       <a-form :model="addForm" layout="vertical">
         <a-form-item field="url" label="直播间URL" required>
-          <a-input
-            v-model="addForm.url"
-            placeholder="例如：https://live.douyin.com/123456789"
-            allow-clear
-            @press-enter="handleAddConfirmByEnter"
-          />
+          <div class="url-field">
+            <a-textarea
+              v-model="addForm.url"
+              placeholder="例如：https://live.douyin.com/123456789，或粘贴手机抖音分享链接"
+              :auto-size="{ minRows: 3, maxRows: 6 }"
+              allow-clear
+              @paste="handleShareLinkPaste"
+            />
+            <div class="url-tip">可直接粘贴手机抖音直播分享链接，系统会自动提取 URL。</div>
+          </div>
         </a-form-item>
         <a-form-item field="quality" label="画质">
           <a-select
@@ -240,9 +244,20 @@ function openAddModal(): void {
   addModalVisible.value = true;
 }
 
+function extractUrl(text: string): string {
+  return text.match(/https?:\/\/[^\s<>，。；、]+/i)?.[0] || "";
+}
+
+function handleShareLinkPaste(event: ClipboardEvent): void {
+  const url = extractUrl(event.clipboardData?.getData("text") || "");
+  if (!url) return;
+  event.preventDefault();
+  addForm.url = url;
+}
+
 // 弹窗确认：校验 URL 后把新记录插入列表顶部（仍需点页面「保存」才写入文件）
 function handleAddOk(): boolean {
-  const url = addForm.url.trim();
+  const url = extractUrl(addForm.url);
   if (!url) {
     Message.warning("请填写直播间URL");
     return false; // 阻止弹窗关闭
@@ -259,12 +274,6 @@ function handleAddOk(): boolean {
     ...rows.value,
   ];
   return true;
-}
-
-function handleAddConfirmByEnter(): void {
-  if (handleAddOk()) {
-    addModalVisible.value = false;
-  }
 }
 
 function deleteRow(id: number): void {
@@ -433,6 +442,18 @@ onMounted(load);
 
 .footer-bar-text {
   margin-left: auto;
+}
+
+.url-field {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.url-tip {
+  margin-top: 6px;
+  color: var(--color-text-3, #86909c);
+  font-size: 12px;
 }
 
 .batch-actions {
