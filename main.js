@@ -526,7 +526,7 @@ function containsUrl(str) {
 /** @returns {Promise<void>} */
 async function startConfigManager() {
   try {
-    const { startServer } = await import('./config-manager/' + 'server.js');
+    const { startServer } = await import('./config-manager/dist/' + 'server.js');
     const server = await startServer();
     const info = server?.configManagerHttpInfo || {};
     const url = info.url || 'http://127.0.0.1:5000';

@@ -129,7 +129,7 @@ export function getDefaultQuality() {
     ?.items.find((value) => value.key === "原画|超清|高清|标清|流畅");
   return QUALITIES.includes(item?.value || "") ? item!.value : "原画";
 }
-export function getDownloadsDir() {
+export function getDownloadsDir(): string {
   // 使用录制器配置的输出目录，未配置时回退到 downloads/。
   const item = parseAppConfig(readConfig(APP_CONFIG_PATH))
     .find((section) => section.name === "录制设置")

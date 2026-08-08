@@ -9,7 +9,7 @@
 
 ## 环境要求
 
-- [Node.js](https://nodejs.org/) >= 18.0.0，或使用 [Bun](https://bun.com/)（兼容 Node.js，且内存占用更小，推荐）
+- [Node.js](https://nodejs.org/) >= 18.0.0，或使用 [Bun](https://bun.com/)（兼容 Node.js，且内存占用更小，**不支持http2**）
 - [FFmpeg](https://ffmpeg.org/download.html)（需加入系统 PATH，录制依赖）
 
 ## 快速开始
@@ -50,7 +50,7 @@ https://live.douyin.com/123456789
 npm start
 ```
 
-使用 Bun 运行（内存占用相比 Node 更小）：
+使用 Bun 运行（内存占用相比 Node 更小，不支持http2）：
 
 ```bash
 bun main.js

@@ -6,6 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "node --max-semi-space-size=4 --max-old-space-size=256 main.js",
+    "bun:start": "bun main.js",
     "dev": "node --watch main.js",
     "build:config-manager": "tsc -p config-manager/tsconfig.json",
     "dev:config-manager-frontend": "vite --config config-manager/frontend/vite.config.ts config-manager/frontend",
