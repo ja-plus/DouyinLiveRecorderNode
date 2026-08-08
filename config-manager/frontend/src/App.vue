@@ -59,7 +59,7 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   /* 使用 arco 变量，暗色下自动切换 */
-  background: var(--color-fill-2, #f5f6fb);
+  background: var(--color-fill-1, #f7f8fa);
   color: var(--color-text-1, #1d2129);
   transition: background-color 0.2s;
 }
@@ -83,7 +83,8 @@ body[arco-theme='dark'] {
   gap: 32px;
   height: 56px;
   padding: 0 24px;
-  background: var(--color-bg-2, #fff);
+  background: color-mix(in srgb, var(--color-bg-2, #fff) 94%, transparent);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-border-2, #e5e6eb);
   box-sizing: border-box;
 }
@@ -140,4 +141,8 @@ body[arco-theme='dark'] {
   /* 普通长页面（如系统配置）在此容器内滚动 */
   overflow-y: auto;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .content > * { animation: page-enter 220ms ease-out both; }
+}
+@keyframes page-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 </style>

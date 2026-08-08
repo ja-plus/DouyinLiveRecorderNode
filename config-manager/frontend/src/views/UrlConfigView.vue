@@ -400,8 +400,8 @@ onMounted(load);
 }
 
 .title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 650;
   color: var(--color-text-1, #1d2129);
 }
 
@@ -452,7 +452,9 @@ onMounted(load);
   flex: 1;
   min-height: 0;
   background: var(--color-bg-2, #fff);
-  border-radius: 6px;
+  border: 1px solid var(--color-border-2, #e5e6eb);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 3%);
 }
 
 /* 移动端：缩小内边距，头部/工具栏自动换行 */

@@ -177,8 +177,8 @@ onMounted(load);
 }
 
 .title {
-    font-size: 20px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 650;
     color: var(--color-text-1, #1d2129);
 }
 
@@ -206,8 +206,10 @@ onMounted(load);
 .spin-wrap {
     display: block;
     background: var(--color-bg-2, #fff);
-    border-radius: 6px;
+    border: 1px solid var(--color-border-2, #e5e6eb);
+    border-radius: 8px;
     padding: 16px 20px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 3%);
 }
 
 /* 双列表单，长文本控件独占一行 */
