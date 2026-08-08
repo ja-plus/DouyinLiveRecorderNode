@@ -19,6 +19,8 @@
 import { reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { useRoute, useRouter } from 'vue-router';
+import http from '../http';
+import { API } from '../api';
 
 const router = useRouter();
 const route = useRoute();
@@ -32,14 +34,10 @@ async function submit(): Promise<void> {
   }
   loading.value = true;
   try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+    const data = await http.post<{ success?: boolean; error?: string }>(API.authLogin, {
+      body: form,
     });
-    const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || '登录失败');
+    if (!data.success) throw new Error(data.error || '登录失败');
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/url-config';
     await router.replace(redirect);
   } catch (error) {

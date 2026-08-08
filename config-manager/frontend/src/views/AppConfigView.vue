@@ -75,14 +75,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { Message } from '@arco-design/web-vue';
+import http from '../http';
+import { API } from '../api';
 import type {
     ApiGetAppConfigResp,
     ApiSaveConfigResp,
     AppConfigItem,
     AppConfigSection,
 } from '../types';
-
-const API = '/api/app-config';
 
 const sections = ref<AppConfigSection[]>([]);
 const loading = ref(false);
@@ -123,8 +123,7 @@ function optionsOf(item: AppConfigItem): string[] {
 async function load(): Promise<void> {
     loading.value = true;
     try {
-        const res = await fetch(API, { credentials: 'include' });
-        const data: ApiGetAppConfigResp = await res.json();
+        const data = await http.get<ApiGetAppConfigResp>(API.appConfig);
         if (!data.success) throw new Error(data.error || '未知错误');
         sections.value = data.sections || [];
         savedSnapshot.value = contentSnapshot.value;
@@ -139,13 +138,9 @@ async function load(): Promise<void> {
 async function save(): Promise<void> {
     saving.value = true;
     try {
-        const res = await fetch(API, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sections: sections.value }),
+        const data = await http.post<ApiSaveConfigResp>(API.appConfig, {
+            body: { sections: sections.value },
         });
-        const data: ApiSaveConfigResp = await res.json();
         if (!data.success) throw new Error(data.error || '未知错误');
         savedSnapshot.value = contentSnapshot.value;
         Message.success(`保存成功，共写入 ${data.count} 个配置项`);

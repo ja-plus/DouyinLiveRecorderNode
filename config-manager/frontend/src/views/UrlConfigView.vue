@@ -130,6 +130,8 @@ import {
   type StkTableColumn,
 } from "stk-table-vue";
 import { Message, Checkbox } from "@arco-design/web-vue";
+import http from "../http";
+import { API } from "../api";
 // Checkbox 在这里是手动 import（非模板中使用），ArcoResolver 不会自动引入其样式
 import "@arco-design/web-vue/es/checkbox/style/css.js";
 import ActionCell from "../components/ActionCell.vue";
@@ -146,8 +148,6 @@ import {
   type ConfigActions,
   type UrlRow,
 } from "../types";
-
-const API = "/api/config";
 
 let uid = 1;
 const rows = ref<UrlRow[]>([]);
@@ -210,8 +210,7 @@ const columns: StkTableColumn<UrlRow>[] = [
 async function load(): Promise<void> {
   loading.value = true;
   try {
-    const res = await fetch(API, { credentials: "include" });
-    const data: ApiGetConfigResp = await res.json();
+    const data = await http.get<ApiGetConfigResp>(API.config);
     if (!data.success) throw new Error(data.error || "未知错误");
     if (Array.isArray(data.qualities) && data.qualities.length) {
       qualityOptions.value = data.qualities;
@@ -338,13 +337,9 @@ async function save(): Promise<void> {
         name: r.name.trim(),
       })),
     };
-    const res = await fetch(API, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const data = await http.post<ApiSaveConfigResp>(API.config, {
+      body: payload,
     });
-    const data: ApiSaveConfigResp = await res.json();
     if (!data.success) throw new Error(data.error || "未知错误");
     savedSnapshot.value = contentSnapshot.value;
     Message.success(`保存成功，共写入 ${data.count} 条记录`);

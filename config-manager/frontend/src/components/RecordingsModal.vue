@@ -48,6 +48,8 @@
 import { ref, watch, nextTick, provide, markRaw } from "vue";
 import { StkTable, type StkTableColumn } from "stk-table-vue";
 import { Message } from "@arco-design/web-vue";
+import http from "../http";
+import { API } from "../api";
 import RecordingActionCell from "./RecordingActionCell.vue";
 import { isDark } from "../composables/useTheme";
 import {
@@ -105,11 +107,9 @@ async function load(): Promise<void> {
   loading.value = true;
   items.value = [];
   try {
-    const res = await fetch(
-      `/api/recordings?name=${encodeURIComponent(props.anchorName)}`,
-      { credentials: "include" },
-    );
-    const data: ApiRecordingsResp = await res.json();
+    const data = await http.get<ApiRecordingsResp>(API.recordings, {
+      params: { name: props.anchorName },
+    });
     if (!data.success) throw new Error(data.error || "未知错误");
     let id = 1;
     items.value = (data.items || []).map((it) => ({
@@ -159,8 +159,7 @@ async function play(row: RecordingItem): Promise<void> {
   if (!el) return;
   destroyPlayer();
 
-  const url =
-    "/api/video/" + row.file.split("/").map(encodeURIComponent).join("/");
+  const url = API.video(row.file);
   if (row.ext === "flv" || row.ext === "ts") {
     // FLV/TS 浏览器无法原生播放，用 mpegts.js 走 MSE 转封装
     const mpegts = (await import("mpegts.js")).default;
@@ -201,13 +200,9 @@ function stopPlay(): void {
 // ==== 删除 ====
 async function remove(row: RecordingItem): Promise<void> {
   try {
-    const res = await fetch("/api/recordings", {
-      method: "DELETE",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: row.file }),
+    const data = await http.del<{ success?: boolean; error?: string }>(API.recordings, {
+      body: { file: row.file },
     });
-    const data = await res.json();
     if (!data.success) throw new Error(data.error || "未知错误");
     items.value = items.value.filter((it) => it.id !== row.id);
     Message.success("已删除: " + row.name);

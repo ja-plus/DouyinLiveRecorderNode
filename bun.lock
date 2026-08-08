@@ -16,6 +16,7 @@
         "fastify": "^5.3.3",
         "hpagent": "^1.2.0",
         "ini": "^5.0.0",
+        "ja-fetch": "^1.6.1",
         "mpegts.js": "^1.8.0",
         "nodemailer": "^7.0.3",
         "pino": "^9.6.0",
@@ -407,6 +408,8 @@
     "isexe": ["isexe@2.0.0", "https://registry.npmmirror.com/isexe/-/isexe-2.0.0.tgz", {}, "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="],
 
     "iterare": ["iterare@1.2.1", "https://registry.npmmirror.com/iterare/-/iterare-1.2.1.tgz", {}, "sha512-RKYVTCjAnRthyJes037NX/IiqeidgN1xc3j1RjFfECFp28A1GVwK9nA+i0rJPaHqSZwygLzRnFlzUuHFoWWy+Q=="],
+
+    "ja-fetch": ["ja-fetch@1.6.1", "https://registry.npmmirror.com/ja-fetch/-/ja-fetch-1.6.1.tgz", {}, "sha512-gWmqtpu5Iyh4cSXc/La3yChx7WLYcqRfVTXwkJzB13t7Guah7r2TVrEkYzNhww+CuDG5zV9G+v+puXzdCBc6SQ=="],
 
     "jackspeak": ["jackspeak@4.2.3", "https://registry.npmmirror.com/jackspeak/-/jackspeak-4.2.3.tgz", { "dependencies": { "@isaacs/cliui": "^9.0.0" } }, "sha512-ykkVRwrYvFm1nb2AJfKKYPr0emF6IiXDYUaFx4Zn9ZuIH7MrzEZ3sD5RlqGXNRpHtvUHJyOnCEFxOlNDtGo7wg=="],
 
