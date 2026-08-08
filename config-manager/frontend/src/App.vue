@@ -141,8 +141,4 @@ body[arco-theme='dark'] {
   /* 普通长页面（如系统配置）在此容器内滚动 */
   overflow-y: auto;
 }
-@media (prefers-reduced-motion: no-preference) {
-  .content > * { animation: page-enter 220ms ease-out both; }
-}
-@keyframes page-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 </style>
