@@ -97,6 +97,39 @@ body {
 body[arco-theme='dark'] {
   background: var(--color-bg-1, #17171a);
 }
+
+/* 全局滚动条美化：统一页面、弹窗、表格等所有可滚动容器的滚动条样式 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-fill-4, #c9cdd4);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-4, #86909c);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox 回退 */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fill-4, #c9cdd4) transparent;
+  }
+}
 </style>
 
 <style scoped>

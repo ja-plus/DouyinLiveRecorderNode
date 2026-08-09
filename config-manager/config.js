@@ -20,6 +20,12 @@
  *   loginPassword 登录密码
  *   authSecret   用于签发登录 Cookie 的高强度随机字符串（建议至少 32 个字符）
  *   authCookieMaxAgeDays Cookie 有效天数，默认 30 天
+ *   recorderStatusUrl 录制器（main.js）状态服务地址，用于实时获取正在录制的主播。
+ *                     微服务架构下 config-manager 通过此地址订阅 SSE 状态流；
+ *                     不填则实时录制状态不可用（其余功能不受影响）。
+ *   logLevel        日志级别：trace/debug/info/warn/error/fatal/silent，默认 info
+ *   logDir          日志文件目录；相对路径以项目根目录为基准，留空则仅输出控制台。
+ *                   日志以 NDJSON 追加写入 logDir/config-manager.log，建议配合 logrotate 滚动。
  *
  * 配置变更后，重启 pnpm run config-manager（或 bun:config-manager）生效。
  */
@@ -35,6 +41,11 @@ export default {
   loginPassword: 'admin',
   authSecret: '78f654006c8e8538a7e3574679a903958ab1db99d7d67aeb46a612ce1b7b3eb7',
   authCookieMaxAgeDays: 30,
+  recorderStatusUrl: 'http://127.0.0.1:5001',
+  // 日志级别：trace/debug/info/warn/error/fatal/silent，默认 info
+  logLevel: 'info',
+  // 日志文件目录；相对路径以项目根目录为基准，留空则仅输出控制台
+  logDir: '',
   // certPath: './server.crt',
   // keyPath: './server.key'
 };

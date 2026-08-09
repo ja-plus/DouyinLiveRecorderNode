@@ -5,33 +5,10 @@
     </div>
 
     <div class="sub-bar">
-      <div class="batch-actions">
-        <a-popconfirm
-          content="确认删除选中的记录？"
-          type="warning"
-          ok-text="删除"
-          cancel-text="取消"
-          @ok="deleteChecked"
-        >
-          <a-button size="small" status="danger" :disabled="checkedCount === 0"
-            >删除</a-button
-          >
-        </a-popconfirm>
-        <a-button
-          size="small"
-          type="primary"
-          :disabled="checkedCount === 0"
-          @click="setCheckedEnabled(true)"
-          >开启</a-button
-        >
-        <a-button
-          size="small"
-          type="outline"
-          :disabled="checkedCount === 0"
-          @click="setCheckedEnabled(false)"
-          >关闭</a-button
-        >
-      </div>
+      <a-radio-group v-model="viewMode" type="button" size="small">
+        <a-radio value="table">表格</a-radio>
+        <a-radio value="panel">面板</a-radio>
+      </a-radio-group>
       <div class="toolbar">
         <a-button :loading="loading" @click="load">
           <template #icon><icon-refresh /></template>
@@ -50,12 +27,14 @@
     </div>
 
     <StkTable
+      v-if="viewMode === 'table'"
       class="table"
       row-key="id"
       :theme="isDark ? 'dark' : 'light'"
       :columns="columns"
       :data-source="rows"
       :row-height="48"
+      :row-class-name="rowClassName"
       no-data-full
       fixed-col-shadow
       bordered
@@ -74,10 +53,55 @@
         </div>
       </template>
     </StkTable>
+    <StkTable
+      v-else
+      class="table panel-table"
+      row-key="id"
+      :theme="isDark ? 'dark' : 'light'"
+      :columns="panelColumns"
+      :data-source="rows"
+      :row-height="120"
+      no-data-full
+      :row-active="false"
+      :row-hover="false"
+      headless
+      :bordered="false"
+      virtual
+    >
+      <template #empty>
+        <div>
+          暂无直播间记录，<a-button
+            size="small"
+            type="text"
+            @click="openAddModal"
+            >点击新增</a-button
+          >
+        </div>
+      </template>
+    </StkTable>
     <div class="footer-bar">
+      <span
+        v-if="connectionState === 'unavailable'"
+        class="rec-status muted"
+        >录制状态未配置</span
+      >
+      <span
+        v-else-if="connectionState !== 'connected'"
+        class="rec-status muted"
+        >录制状态连接中…</span
+      >
+      <span v-else-if="!recorderOnline" class="rec-status muted"
+        >录制器离线</span
+      >
+      <span v-else class="rec-status online"
+        >正在录制 {{ recordingCount }} 个 · 监测 {{ monitoringCount }} 个</span
+      >
       <span class="footer-bar-text"
-        >已选 {{ checkedCount }} 条，共 {{ rows.length }} 条，启用
-        {{ enabledCount }} 条，注释 {{ rows.length - enabledCount }} 条</span
+        >共 {{ activeCount }} 条，启用 {{ enabledCount }} 条，注释
+        {{ activeCount - enabledCount }} 条<span v-if="deletedCount"
+          class="deleted-tip"
+          >，待删除 {{ deletedCount }} 条</span
+        ></span
       >
     </div>
 
@@ -129,20 +153,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, provide, markRaw } from "vue";
-import {
-  StkTable,
-  createCheckboxCell,
-  type StkTableColumn,
-} from "stk-table-vue";
-import { Message, Checkbox } from "@arco-design/web-vue";
+import { StkTable, type StkTableColumn } from "stk-table-vue";
+import { Message } from "@arco-design/web-vue";
 import http from "../http";
 import { API } from "../api";
-// Checkbox 在这里是手动 import（非模板中使用），ArcoResolver 不会自动引入其样式
-import "@arco-design/web-vue/es/checkbox/style/css.js";
 import ActionCell from "../components/ActionCell.vue";
 import QualityCell from "../components/QualityCell.vue";
+import RecordingStatusCell from "../components/RecordingStatusCell.vue";
 import RecordingsModal from "../components/RecordingsModal.vue";
+import UrlPanelCell from "../components/UrlPanelCell.vue";
 import { isDark } from "../composables/useTheme";
+import { useRecordingStatus } from "../composables/useRecordingStatus";
 import {
   CONFIG_ACTIONS_KEY,
   QUALITY_OPTIONS,
@@ -163,30 +184,47 @@ const saving = ref(false);
 const qualityOptions = ref<string[]>(QUALITY_OPTIONS);
 const defaultQuality = ref("原画");
 
+// 视图模式：表格 / 面板。移动端（≤640px）默认面板，桌面默认表格
+type ViewMode = "table" | "panel";
+const viewMode = ref<ViewMode>(
+  typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 640px)").matches
+    ? "panel"
+    : "table",
+);
+
 // 新增弹窗状态
 const addModalVisible = ref(false);
 const addForm = reactive({ url: "", name: "", quality: "" });
 
-const enabledCount = computed(() => rows.value.filter((r) => r.enabled).length);
-const checkedCount = computed(() => rows.value.filter((r) => r.checked).length);
+const enabledCount = computed(
+  () => rows.value.filter((r) => r.enabled && !r.deleted).length,
+);
+// 未置灰的行数（即保存时实际写入的条数）
+const activeCount = computed(
+  () => rows.value.filter((r) => !r.deleted).length,
+);
+// 已置灰、待保存时移除的行数
+const deletedCount = computed(
+  () => rows.value.filter((r) => r.deleted).length,
+);
 
-// stk-table-vue 自带的 checkbox 插件（用 arco Checkbox 渲染，选中状态存在行的 checked 字段）
-const { CheckboxCell, CheckboxAllCell } = createCheckboxCell<UrlRow>({
-  field: "checked",
-  checkboxComponent: Checkbox,
-});
+// 实时录制状态（SSE 订阅，模块级单例，首次调用即建立连接）
+const {
+  recordingMap,
+  monitoring: monitoringCount,
+  connectionState,
+  recorderOnline,
+} = useRecordingStatus();
+const recordingCount = computed(() => recordingMap.value.size);
 
-// 表格列定义：首列为复选框，其次拖拽手柄，最右侧为操作列（switch + 删除）
+// 软删除行附加 className，配合 :deep 样式置灰
+function rowClassName(row: UrlRow): string {
+  return row.deleted ? "row-deleted" : "";
+}
+
+// 表格列定义：序号列起，最右侧为操作列（switch + 查看录制 + 删除）
 const columns: StkTableColumn<UrlRow>[] = [
-  {
-    dataIndex: "checked",
-    title: "",
-    width: 40,
-    align: "center",
-    fixed: "left",
-    customCell: CheckboxCell(),
-    customHeaderCell: CheckboxAllCell(),
-  },
   {
     type: "seq",
     title: "",
@@ -195,6 +233,12 @@ const columns: StkTableColumn<UrlRow>[] = [
     align: "center",
   },
   { title: "主播", dataIndex: "name", width: 100 },
+  {
+    title: "录制",
+    dataIndex: "_rec" as never,
+    width: 120,
+    customCell: markRaw(RecordingStatusCell),
+  },
   {
     title: "画质",
     dataIndex: "quality",
@@ -207,8 +251,18 @@ const columns: StkTableColumn<UrlRow>[] = [
     dataIndex: "_action" as never,
     align: "center",
     fixed: "right",
-    width: 130,
+    width: 160,
     customCell: markRaw(ActionCell),
+  },
+];
+
+// 面板模式：单列卡片，由 UrlPanelCell 渲染整行内容（headless）
+const panelColumns: StkTableColumn<UrlRow>[] = [
+  {
+    title: "",
+    dataIndex: "_panel" as never,
+    width: 100,
+    customCell: markRaw(UrlPanelCell),
   },
 ];
 
@@ -227,7 +281,7 @@ async function load(): Promise<void> {
       quality: it.quality || "",
       url: it.url || "",
       name: it.name || "",
-      checked: false,
+      deleted: false,
     }));
     savedSnapshot.value = contentSnapshot.value;
     Message.success(`已加载 ${rows.value.length} 条记录`);
@@ -271,31 +325,23 @@ function handleAddOk(): boolean {
       quality: addForm.quality || "",
       url,
       name: addForm.name.trim(),
-      checked: false,
+      deleted: false,
     },
     ...rows.value,
   ];
   return true;
 }
 
+// 软删除：未保存前仅置灰行，保留可撤销能力，保存时才真正从列表移除
 function deleteRow(id: number): void {
-  rows.value = rows.value.filter((r) => r.id !== id);
+  const row = rows.value.find((r) => r.id === id);
+  if (row) row.deleted = true;
 }
 
-// 批量操作：删除/开启/关闭选中行
-function deleteChecked(): void {
-  const count = checkedCount.value;
-  rows.value = rows.value.filter((r) => !r.checked);
-  Message.success(`已删除 ${count} 条记录`);
-}
-
-function setCheckedEnabled(enabled: boolean): void {
-  rows.value.forEach((r) => {
-    if (r.checked) r.enabled = enabled;
-  });
-  Message.success(
-    `已${enabled ? "开启" : "关闭"} ${checkedCount.value} 条记录`,
-  );
+// 撤销软删除：恢复行为正常状态
+function undoDelete(id: number): void {
+  const row = rows.value.find((r) => r.id === id);
+  if (row) row.deleted = false;
 }
 
 // 拖拽排序后同步外部数据顺序（表格内部只改自己的副本）
@@ -327,13 +373,18 @@ function openRecordings(row: UrlRow): void {
 }
 
 // 提供给单元格组件调用的操作方法
-provide<ConfigActions>(CONFIG_ACTIONS_KEY, { deleteRow, openRecordings });
+provide<ConfigActions>(CONFIG_ACTIONS_KEY, {
+  deleteRow,
+  undoDelete,
+  openRecordings,
+});
 // 提供给画质单元格：可选画质列表 + 默认画质
 provide(QUALITY_OPTIONS_KEY, qualityOptions);
 provide(DEFAULT_QUALITY_KEY, defaultQuality);
 
 async function save(): Promise<void> {
-  const emptyUrl = rows.value.some((r) => !r.url.trim());
+  const activeRows = rows.value.filter((r) => !r.deleted);
+  const emptyUrl = activeRows.some((r) => !r.url.trim());
   if (emptyUrl) {
     Message.warning("存在空的直播间URL，请填写或删除后再保存");
     return;
@@ -341,7 +392,7 @@ async function save(): Promise<void> {
   saving.value = true;
   try {
     const payload = {
-      items: rows.value.map((r) => ({
+      items: activeRows.map((r) => ({
         enabled: r.enabled,
         quality: r.quality,
         url: r.url.trim(),
@@ -352,6 +403,8 @@ async function save(): Promise<void> {
       body: payload,
     });
     if (!data.success) throw new Error(data.error || "未知错误");
+    // 保存成功后真正移除已置灰的行
+    rows.value = rows.value.filter((r) => !r.deleted);
     savedSnapshot.value = contentSnapshot.value;
     Message.success(`保存成功，共写入 ${data.count} 条记录`);
   } catch (e) {
@@ -361,9 +414,12 @@ async function save(): Promise<void> {
   }
 }
 
-// 未保存状态：当前内容与最近一次加载/保存的基线快照比较（快照不含 checked，勾选复选框不算修改）
+// 未保存状态：当前内容与最近一次加载/保存的基线快照比较
+// 快照仅包含未软删除的行（不含 checked），故置灰/撤销删除会改变脏标记，
+// 撤销对未改过行的删除可让脏标记回到 false
 const contentSnapshot = computed(() =>
   rows.value
+    .filter((r) => !r.deleted)
     .map((r) => `${r.enabled}|${r.quality}|${r.url}|${r.name}`)
     .join("\n"),
 );
@@ -446,6 +502,22 @@ onMounted(load);
   margin-left: auto;
 }
 
+.rec-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.rec-status.muted {
+  color: var(--color-text-3, #86909c);
+}
+
+.rec-status.online {
+  color: #00b42a;
+  font-weight: 600;
+}
+
 .url-field {
   display: flex;
   flex-direction: column;
@@ -456,12 +528,6 @@ onMounted(load);
   margin-top: 6px;
   color: var(--color-text-3, #86909c);
   font-size: 12px;
-}
-
-.batch-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .dirty-tip {
@@ -478,6 +544,34 @@ onMounted(load);
   border: 1px solid var(--color-border-2, #e5e6eb);
   border-radius: 8px;
   box-shadow: 0 6px 18px rgb(0 0 0 / 3%);
+}
+
+/* 面板模式：单元格透明无边框，让卡片自身呈现为浮动卡片 */
+.panel-table :deep(tbody tr) {
+  background: transparent;
+}
+
+.panel-table :deep(td) {
+  background: transparent;
+}
+
+/* 软删除行：整体置灰，文字带删除线，禁止行内交互（操作列的撤销按钮单独放行） */
+:deep(tr.row-deleted) {
+  opacity: 0.45;
+  pointer-events: none;
+  text-decoration: line-through;
+  text-decoration-color: var(--color-text-4, #86909c);
+}
+
+/* 撤销按钮所在的操作列单元格需要恢复交互，否则无法点击 */
+:deep(tr.row-deleted td[data-col-key="_action"]),
+:deep(tr.row-deleted .action-cell) {
+  pointer-events: auto;
+}
+
+.deleted-tip {
+  color: #f53f3f;
+  font-weight: 600;
 }
 
 /* 移动端：缩小内边距，头部/工具栏自动换行 */

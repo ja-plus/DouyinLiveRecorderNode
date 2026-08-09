@@ -2,6 +2,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { ALLOWED_LEVELS } from "./logger.js";
 import { OWN_CONFIG_PATH, ROOT_DIR } from "./paths.js";
 
 export type ServerSettings = {
@@ -25,6 +26,12 @@ export type ServerSettings = {
   authSecret: string;
   /** Cookie 有效天数，默认 30 天 */
   authCookieMaxAgeDays: number;
+  /** 录制器（main.js）状态服务地址，用于订阅实时录制状态（SSE）；为空则该功能不可用 */
+  recorderStatusUrl: string;
+  /** 日志级别：trace/debug/info/warn/error/fatal/silent */
+  logLevel: string;
+  /** 日志文件目录；为空则仅控制台输出。相对路径以项目根目录为基准 */
+  logDir: string;
 };
 export const DEFAULT_SETTINGS: ServerSettings = {
   enableHttp2: false,
@@ -37,9 +44,15 @@ export const DEFAULT_SETTINGS: ServerSettings = {
   loginPassword: "",
   authSecret: "",
   authCookieMaxAgeDays: 30,
+  recorderStatusUrl: "",
+  logLevel: "info",
+  logDir: "",
 };
 
-export async function getServerSettings(): Promise<ServerSettings> {
+export async function getServerSettings(): Promise<{
+  settings: ServerSettings;
+  loadError?: unknown;
+}> {
   // config.js 缺失或格式异常时保留默认值，确保管理服务仍能启动。
   const settings = { ...DEFAULT_SETTINGS };
   try {
@@ -47,7 +60,7 @@ export async function getServerSettings(): Promise<ServerSettings> {
     const config: Record<string, unknown> =
       (await import(`${pathToFileURL(OWN_CONFIG_PATH).href}?t=${Date.now()}`))
         .default || {};
-    if (!config || typeof config !== "object") return settings;
+    if (!config || typeof config !== "object") return { settings };
     if (typeof config.enableHttp2 === "boolean")
       settings.enableHttp2 = config.enableHttp2;
     else if (["是", "true", 1, "1"].includes(config.enableHttp2 as never))
@@ -71,8 +84,23 @@ export async function getServerSettings(): Promise<ServerSettings> {
     const days = Number(config.authCookieMaxAgeDays);
     if (Number.isFinite(days) && days > 0 && days <= 3650)
       settings.authCookieMaxAgeDays = days;
-  } catch {}
-  return settings;
+    if (typeof config.recorderStatusUrl === "string" && config.recorderStatusUrl.trim())
+      // 去掉末尾斜杠，避免拼路径时出现双斜杠。
+      settings.recorderStatusUrl = config.recorderStatusUrl.trim().replace(/\/+$/, "");
+    if (
+      typeof config.logLevel === "string" &&
+      ALLOWED_LEVELS.has(config.logLevel)
+    )
+      settings.logLevel = config.logLevel;
+    if (typeof config.logDir === "string" && config.logDir.trim())
+      settings.logDir = path.isAbsolute(config.logDir)
+        ? config.logDir.trim()
+        : path.resolve(ROOT_DIR, config.logDir.trim());
+  } catch (error) {
+    // 配置加载失败时返回默认值 + 错误信息，由调用方记录日志后继续启动。
+    return { settings, loadError: error };
+  }
+  return { settings };
 }
 
 export function loadTlsOptions({

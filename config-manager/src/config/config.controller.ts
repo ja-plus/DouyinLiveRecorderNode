@@ -3,11 +3,14 @@ import {
   Controller,
   Get,
   HttpCode,
+  Inject,
   Post,
   Res,
   type HttpStatus,
 } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
+import type { Logger } from "pino";
+import { LOGGER_TOKEN } from "../common/logger.js";
 import {
   APP_CONFIG_PATH,
   CONFIG_PATH,
@@ -34,13 +37,17 @@ type AppSection = {
 
 @Controller("/api")
 export class ConfigController {
+  constructor(@Inject(LOGGER_TOKEN) private readonly logger: Logger) {}
+
   // 将服务层的异常统一转换为前端使用的 API 响应格式。
   private failed(reply: FastifyReply, status: HttpStatus, error: unknown) {
+    const message =
+      error instanceof Error ? error.message : String(error);
+    if (status >= 500)
+      this.logger.error({ err: error }, "配置读写失败");
+    else this.logger.warn({ message, status }, "请求参数校验失败");
     reply.code(status);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    return { success: false, error: message };
   }
 
   @Get("config")
@@ -72,7 +79,9 @@ export class ConfigController {
       const text = buildIni(body.items);
       // 重新解析生成的文本，返回实际保存的有效条目数量。
       saveConfig(CONFIG_PATH, text);
-      return { success: true, count: parseIni(text).length };
+      const count = parseIni(text).length;
+      this.logger.info({ path: CONFIG_PATH, count }, "URL 配置已保存");
+      return { success: true, count };
     } catch (error) {
       return this.failed(reply, 500, error);
     }
@@ -105,13 +114,12 @@ export class ConfigController {
         // 仅替换已知键的值，保留注释和未知的 INI 内容。
         updateAppConfig(readConfig(APP_CONFIG_PATH), body.sections),
       );
-      return {
-        success: true,
-        count: body.sections.reduce(
-          (total, section) => total + (section.items?.length || 0),
-          0,
-        ),
-      };
+      const count = body.sections.reduce(
+        (total, section) => total + (section.items?.length || 0),
+        0,
+      );
+      this.logger.info({ path: APP_CONFIG_PATH, count }, "应用配置已保存");
+      return { success: true, count };
     } catch (error) {
       return this.failed(reply, 500, error);
     }

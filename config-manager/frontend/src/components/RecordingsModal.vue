@@ -4,6 +4,7 @@
     :title="`已录制文件 - ${anchorName}`"
     :footer="false"
     modal-class="recordings-modal"
+    :mask-closable="false"
     draggable
     unmount-on-close
     @update:visible="onVisibleChange"
@@ -17,7 +18,7 @@
           :theme="isDark ? 'dark' : 'light'"
           :columns="columns"
           :data-source="items"
-          :row-height="108"
+          :row-height="80"
           no-data-full
           :row-active="false"
           :row-hover="false"
@@ -40,6 +41,7 @@
     :title="playing?.name || '播放'"
     :footer="false"
     modal-class="player-modal"
+    :mask-closable="false"
     draggable
     unmount-on-close
     @close="stopPlay"
@@ -220,7 +222,6 @@ provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play, download, remove });
 <style>
 /* 弹窗挂在 body 下，scoped 样式作用不到 */
 .arco-modal.recordings-modal {
-  width: 480px;
   max-width: 94vw;
 }
 

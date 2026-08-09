@@ -10,8 +10,11 @@ export interface UrlRow {
   quality: string;
   url: string;
   name: string;
-  /** 复选框选中状态（仅前端批量操作用，不参与保存） */
-  checked: boolean;
+  /**
+   * 软删除标记：点击删除时置为 true，行置灰并仅保留撤销按钮；
+   * 保存时才真正从列表移除并写入文件。
+   */
+  deleted: boolean;
 }
 
 /** 后端 GET /api/config 返回的单条记录 */
@@ -68,7 +71,10 @@ export interface CellProps<T extends object> {
 
 /** 通过 provide/inject 提供给单元格组件的操作方法 */
 export interface ConfigActions {
+  /** 软删除：将行标记为已删除（置灰），保存时才真正移除 */
   deleteRow: (id: number) => void;
+  /** 撤销软删除：将行恢复为正常状态 */
+  undoDelete: (id: number) => void;
   /** 打开某主播的已录制文件弹窗 */
   openRecordings: (row: UrlRow) => void;
 }
@@ -89,6 +95,8 @@ export interface RecordingItem {
   size: number;
   /** 修改时间（毫秒时间戳） */
   mtime: number;
+  /** 缩略图文件名，后端尚未生成时为 null */
+  thumbFile: string | null;
 }
 
 export interface ApiRecordingsResp {
@@ -124,3 +132,26 @@ export const QUALITY_OPTIONS_KEY = 'qualityOptions';
 
 /** provide/inject：config.ini 的默认画质（Ref<string>） */
 export const DEFAULT_QUALITY_KEY = 'defaultQuality';
+
+/** 一个正在录制的主播状态（来自后端 SSE 快照） */
+export interface RecordingStatusItem {
+  /** 完整显示名（序号N 主播名） */
+  name: string;
+  /** 主播名（去掉序号前缀） */
+  anchorName: string;
+  /** 直播间地址，与 UrlRow.url 精确匹配 */
+  url: string;
+  /** 录制开始时间 ISO 串 */
+  startTime: string;
+  /** 画质中文 */
+  quality: string;
+}
+
+/** 后端 SSE 推送的录制状态快照 */
+export interface RecordingStatusSnapshot {
+  recording: RecordingStatusItem[];
+  monitoring: number;
+  updatedAt: string;
+  /** 录制器（main.js）是否在线 */
+  recorderOnline: boolean;
+}

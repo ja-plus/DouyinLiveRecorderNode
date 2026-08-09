@@ -230,6 +230,10 @@ export function loadAppSettings() {
     enableProxyPlatform: readConfigValue(config, '录制设置', '使用代理录制的平台(逗号分隔)',
       'tiktok, sooplive, pandalive, winktv, flextv, popkontv, twitch, liveme, showroom, chzzk, shopee, shp, youtu'),
     extraEnableProxy: readConfigValue(config, '录制设置', '额外使用代理录制的平台(逗号分隔)', ''),
+    // 状态服务：以独立微服务方式向 config-manager 暴露实时录制状态（SSE）。
+    // 默认仅绑定本机；如需跨机访问请改地址并自行加防火墙/反向代理。
+    statusServerHost: readConfigValue(config, '录制设置', '状态服务地址(不填则默认本机)', '0.0.0.0'),
+    statusServerPort: parseInt(readConfigValue(config, '录制设置', '状态服务端口', '5001')),
   };
 
   // Push settings

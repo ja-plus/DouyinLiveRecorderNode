@@ -5,6 +5,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
+import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { loadAppSettings, URL_CONFIG_FILE, CONFIG_FILE, DEFAULT_PATH, BACKUP_DIR, backupFile, updateFile, deleteLine } from './src/config/index.js';
 import { removeDuplicateLines, cleanName, getQualityCode, sleep, checkDiskCapacity, getQueryParams } from './src/utils/index.js';
@@ -30,11 +32,49 @@ const VERSION = 'v4.0.7-node';
 const recording = new Set();
 /** @type {Record<string, [Date, string]>} */
 const recordingTimeList = {};
+/** @type {Record<string, string>} recordName -> recordUrl，用于状态快照按 URL 匹配 */
+const recordingUrls = {};
 /** @type {string[]} */
 const runningList = [];
 let errorCount = 0;
 let monitoring = 0;
 let exitRecording = false;
+
+// 录制状态总线：每次 recording 集合变更时 emit('change', snapshot)，
+// 由本进程的 HTTP 状态服务（/recording-status/stream）转成 SSE 推给 config-manager。
+const recordingStateBus = new EventEmitter();
+recordingStateBus.setMaxListeners(0); // SSE 客户端数不定，取消上限
+
+/**
+ * 生成当前录制状态快照，供 config-manager 实时展示。
+ * @typedef {Object} RecordingStatusItem
+ * @property {string} name - 完整显示名（序号N 主播名）
+ * @property {string} anchorName - 主播名（去掉序号前缀）
+ * @property {string} url - 直播间地址，用于与配置行精确匹配
+ * @property {string} startTime - 录制开始时间 ISO 串
+ * @property {string} quality - 画质中文
+ * @returns {{ recording: RecordingStatusItem[], monitoring: number, updatedAt: string }}
+ */
+function getRecordingSnapshot() {
+  /** @type {RecordingStatusItem[]} */
+  const items = [];
+  for (const recordName of recording) {
+    const [startTime, quality] = recordingTimeList[recordName] || [new Date(), ''];
+    items.push({
+      name: recordName,
+      anchorName: recordName.replace(/^序号\d+\s*/, ''),
+      url: recordingUrls[recordName] || '',
+      startTime: startTime instanceof Date ? startTime.toISOString() : new Date().toISOString(),
+      quality: quality || '',
+    });
+  }
+  return { recording: items, monitoring, updatedAt: new Date().toISOString() };
+}
+
+/** recording 集合变更后调用，向所有 SSE 客户端推送最新快照。 */
+function emitRecordingState() {
+  recordingStateBus.emit('change', getRecordingSnapshot());
+}
 // 每路录制线程逐秒轮询查询 URL 状态，使用 Set 保证 O(1) 查找，
 // 避免监控路数多时每秒重复线性扫描数组
 /** @type {Set<string>} */
@@ -291,6 +331,8 @@ async function startRecord(urlData, countVariable) {
 
               recording.add(recordName);
               recordingTimeList[recordName] = [new Date(), recordQualityZh];
+              recordingUrls[recordName] = recordUrl;
+              emitRecordingState();
 
               /** @type {RecordingResult} */
               let recordResult;
@@ -322,6 +364,7 @@ async function startRecord(urlData, countVariable) {
               const { stopped } = recordResult;
 
               recording.delete(recordName);
+              emitRecordingState();
 
               if (stopped) {
                 clearRecordInfo(recordName, recordUrl);
@@ -385,7 +428,8 @@ let globalProxy = false;
  * @param {string} recordUrl
  */
 function clearRecordInfo(recordName, recordUrl) {
-  recording.delete(recordName);
+  const wasRecording = recording.delete(recordName);
+  if (wasRecording) emitRecordingState();
   if (urlComments.has(recordUrl) || !urlFileList.has(recordUrl)) {
     const idx = runningList.indexOf(recordUrl);
     if (idx > -1) {
@@ -524,19 +568,55 @@ function containsUrl(str) {
   return /(https?:\/\/)?(www\.)?[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+(:\d+)?(\/.*)?/.test(str);
 }
 
-// ============ Config Manager Server ============
+// ============ Recording Status Server ============
+// 以独立微服务方式向 config-manager 暴露实时录制状态。
+// config-manager 后端通过 /recording-status/stream（SSE）订阅并中继给浏览器。
+// 注意：config-manager 不再由本进程嵌入启动，需独立运行 pnpm run config-manager。
+let statusServer = null;
 /** @returns {Promise<void>} */
-async function startConfigManager() {
-  try {
-    const { startServer } = await import('./config-manager/dist/' + 'server.js');
-    const server = await startServer();
-    const info = server?.configManagerHttpInfo || {};
-    const url = info.url || 'http://127.0.0.1:5000';
-    const extra = info.scheme ? `(${info.scheme}${info.protocol === 'https' ? ' + TLS' : ''})` : '';
-    console.log(`Web 配置管理台已启动: ${url} ${extra}`);
-  } catch (e) {
-    console.log(`Web 配置管理台启动失败（不影响录制）: ${e instanceof Error ? e.message : String(e)}`);
-  }
+async function startStatusServer() {
+  const host = settings.statusServerHost || '127.0.0.1';
+  const port = settings.statusServerPort || 5001;
+  statusServer = http.createServer((req, res) => {
+    // 仅暴露状态查询，其余路径一律 404，避免被当作通用 HTTP 服务滥用。
+    if (req.url === '/recording-status') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify(getRecordingSnapshot()));
+      return;
+    }
+    if (req.url === '/recording-status/stream') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      // 连接建立即下发当前快照，避免订阅方等待下一次变更才拿到状态。
+      res.write(`data: ${JSON.stringify(getRecordingSnapshot())}\n\n`);
+      /** @param {{recording: unknown[], monitoring: number, updatedAt: string}} snap */
+      const send = (snap) => res.write(`data: ${JSON.stringify(snap)}\n\n`);
+      recordingStateBus.on('change', send);
+      // 心跳：防止代理/负载均衡因长时间无数据而掐断连接。
+      const heartbeat = setInterval(() => res.write(': ping\n\n'), 15000);
+      req.on('close', () => {
+        recordingStateBus.off('change', send);
+        clearInterval(heartbeat);
+      });
+      return;
+    }
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'Not Found' }));
+  });
+  return new Promise((resolve) => {
+    statusServer.listen(port, host, () => {
+      console.log(`录制状态服务已启动: http://${host}:${port} （config-manager 通过此地址订阅实时状态）`);
+      resolve();
+    });
+    statusServer.on('error', (e) => {
+      console.log(`录制状态服务启动失败（不影响录制）: ${e instanceof Error ? e.message : String(e)}`);
+      resolve();
+    });
+  });
 }
 
 // ============ Main ============
@@ -589,8 +669,8 @@ async function main() {
     }
   }
 
-  // Start config manager
-  await startConfigManager();
+  // Start status server (config-manager 现作为独立服务运行，不再嵌入)
+  await startStatusServer();
 
   // Start display thread
   displayInfo().catch(() => {});
@@ -626,6 +706,7 @@ async function main() {
 process.on('SIGINT', () => {
   console.log('\n正在退出...');
   exitRecording = true;
+  statusServer?.close();
   setTimeout(() => process.exit(0), 3000);
 });
 

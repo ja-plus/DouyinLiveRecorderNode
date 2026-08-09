@@ -106,6 +106,8 @@
  * @property {string} customScript
  * @property {string} enableProxyPlatform
  * @property {string} extraEnableProxy
+ * @property {string} statusServerHost - 状态服务绑定地址（默认 127.0.0.1）
+ * @property {number} statusServerPort - 状态服务端口（默认 5001）
  * @property {PushSettings} push
  * @property {CookiesMap} cookies
  * @property {Record<string, string>} accounts

@@ -12,7 +12,7 @@
     "dev:config-manager-frontend": "vite --config config-manager/frontend/vite.config.ts config-manager/frontend",
     "build:config-manager-frontend": "vue-tsc --noEmit -p config-manager/frontend/tsconfig.json && vite build --config config-manager/frontend/vite.config.ts config-manager/frontend",
     "preview:config-manager-frontend": "vite preview --config config-manager/frontend/vite.config.ts config-manager/frontend",
-    "config-manager": "pnpm run build:config-manager && node config-manager/dist/server.js",
+    "config-manager": "node config-manager/dist/server.js",
     "bun:config-manager": "bun --cwd config-manager server.ts",
     "typecheck": "tsc --noEmit"
   },

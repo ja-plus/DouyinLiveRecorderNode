@@ -1,17 +1,32 @@
 <template>
   <div class="action-cell">
-    <a-switch
-      :model-value="row.enabled"
-      @change="onToggle"
-    >
-      <template #checked>启用</template>
-      <template #unchecked>注释</template>
-    </a-switch>
-    <a-tooltip v-if="row.name" content="查看已录制文件">
-      <a-button type="text" @click="actions?.openRecordings(row)">
-        <template #icon><icon-video-camera /></template>
-      </a-button>
-    </a-tooltip>
+    <template v-if="row.deleted">
+      <a-tooltip content="撤销删除">
+        <a-button
+          type="text"
+          status="warning"
+          @click="actions?.undoDelete(row.id)"
+        >
+          <template #icon><icon-undo /></template>
+        </a-button>
+      </a-tooltip>
+    </template>
+    <template v-else>
+      <a-switch :model-value="row.enabled" @change="onToggle">
+        <template #checked>启用</template>
+        <template #unchecked>注释</template>
+      </a-switch>
+      <a-tooltip v-if="row.name" content="查看已录制文件">
+        <a-button type="text" @click="actions?.openRecordings(row)">
+          <template #icon><icon-video-camera /></template>
+        </a-button>
+      </a-tooltip>
+      <a-tooltip content="删除（保存前可撤销）">
+        <a-button type="text" status="danger" @click="actions?.deleteRow(row.id)">
+          <template #icon><icon-delete /></template>
+        </a-button>
+      </a-tooltip>
+    </template>
   </div>
 </template>
 

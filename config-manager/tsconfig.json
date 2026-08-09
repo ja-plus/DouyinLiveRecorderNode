@@ -6,7 +6,8 @@
     "noEmit": false,
     "outDir": "./dist",
     "rootDir": ".",
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": ["server.ts", "src/**/*.ts"]
 }

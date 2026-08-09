@@ -4,6 +4,7 @@
       :model-value="row.quality || undefined"
       size="small"
       allow-clear
+      :disabled="row.deleted"
       :placeholder="`默认(${defaultQuality})`"
       @change="onChange"
       @clear="onClear"
