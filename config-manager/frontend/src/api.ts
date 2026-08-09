@@ -5,5 +5,7 @@ export const API = {
   config: '/api/config',
   appConfig: '/api/app-config',
   recordings: '/api/recordings',
+  recordingDownload: (file: string) =>
+    `/api/recordings/download?file=${encodeURIComponent(file)}`,
   video: (file: string) => `/api/video/${file.split('/').map(encodeURIComponent).join('/')}`,
 } as const;

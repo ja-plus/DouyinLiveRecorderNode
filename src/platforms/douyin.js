@@ -16,7 +16,7 @@ export class DouyinPlatform extends BasePlatform {
 
   /** @param {string} url */
   match(url) {
-    return url.includes('douyin.com/');
+    return url.includes('douyin.com/') || url.includes('webcast.amemv.com/douyin/webcast/reflow/');
   }
 
   /**
@@ -25,7 +25,7 @@ export class DouyinPlatform extends BasePlatform {
    * @returns {Promise<StreamInfo>}
    */
   async getStreamInfo(url, { proxyAddr = null, cookies = '', quality = 'OD' } = {}) {
-    if (url.includes('v.douyin.com') || url.includes('/user/')) {
+    if (url.includes('v.douyin.com') || url.includes('/user/') || url.includes('webcast.amemv.com/douyin/webcast/reflow/')) {
       return this._getAppStreamData(url, proxyAddr, cookies, quality);
     }
     return this._getWebStreamData(url, proxyAddr, cookies, quality);
@@ -96,14 +96,18 @@ export class DouyinPlatform extends BasePlatform {
 
       let roomId, secUserId;
       if (redirectUrl.includes('reflow/')) {
-        const match = redirectUrl.match(/sec_user_id=([\w_-]+)&?/);
-        if (match) {
-          secUserId = match[1];
-          roomId = redirectUrl.split('?')[0].split('/').pop();
-        }
+        // The reflow URL itself carries the room ID.  A direct reflow link
+        // (unlike a redirected share link) often has no sec_user_id.
+        const roomMatch = redirectUrl.match(/\/reflow\/(\d+)/);
+        roomId = roomMatch?.[1];
+        const secUserMatch = redirectUrl.match(/[?&]sec_user_id=([\w_-]+)/);
+        secUserId = secUserMatch?.[1];
       }
 
       if (!roomId) {
+        if (redirectUrl.includes('live.douyin.com/')) {
+          return this._getWebStreamData(redirectUrl, proxyAddr, cookies, quality);
+        }
         // Fallback: try web method
         return this._getWebStreamData(url, proxyAddr, cookies, quality);
       }

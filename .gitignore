@@ -5,3 +5,4 @@ logs/
 downloads/
 backup_config/
 *.log
+copy-code-to-docker.sh

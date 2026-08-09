@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import {
   Body,
   Controller,
@@ -9,7 +11,12 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { getDownloadsDir } from "../config/config.service.js";
-import { deleteRecording, listRecordings } from "./recordings.service.js";
+import {
+  contentDisposition,
+  deleteRecording,
+  listRecordings,
+  resolveRecordingPath,
+} from "./recordings.service.js";
 
 @Controller("/api/recordings")
 export class RecordingsController {
@@ -26,6 +33,38 @@ export class RecordingsController {
           .code(400)
           .send({ success: false, error: "缺少参数 name（主播名）" });
       return { success: true, items: listRecordings(getDownloadsDir(), name) };
+    } catch (error) {
+      return reply
+        .code(500)
+        .send({
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+    }
+  }
+
+  @Get("download")
+  download(
+    @Query("file") file: string | undefined,
+    @Res() reply: FastifyReply,
+  ) {
+    try {
+      // 校验相对路径合法性与存在性，避免路径穿越及任意文件读取。
+      const value = String(file || "").trim();
+      if (!value)
+        return reply.code(400).send({ success: false, error: "缺少参数 file" });
+      const resolved = resolveRecordingPath(getDownloadsDir(), value);
+      if ("error" in resolved)
+        return reply
+          .code(resolved.error === "文件不存在" ? 404 : 400)
+          .send({ success: false, error: resolved.error });
+      const stat = fs.statSync(resolved.fullPath);
+      // attachment 强制浏览器下载而非导航播放，同时给出可读文件名。
+      reply
+        .header("Content-Disposition", contentDisposition(path.basename(resolved.fullPath)))
+        .header("Content-Type", "application/octet-stream")
+        .header("Content-Length", stat.size)
+        .send(fs.createReadStream(resolved.fullPath));
     } catch (error) {
       return reply
         .code(500)

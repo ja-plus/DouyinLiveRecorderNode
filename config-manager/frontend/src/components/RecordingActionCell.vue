@@ -1,6 +1,15 @@
 <template>
   <div class="rec-action-cell">
-    <a-button size="mini" type="primary" @click="actions?.play(row)">观看</a-button>
+    <a-tooltip content="观看">
+      <a-button type="text" @click="actions?.play(row)">
+        <template #icon><icon-play-arrow /></template>
+      </a-button>
+    </a-tooltip>
+    <a-tooltip content="下载">
+      <a-button type="text" @click="actions?.download(row)">
+        <template #icon><icon-download /></template>
+      </a-button>
+    </a-tooltip>
     <a-popconfirm content="确定删除该录制文件？删除后不可恢复" @ok="actions?.remove(row)">
       <a-button type="text" status="danger">
         <template #icon><icon-delete /></template>

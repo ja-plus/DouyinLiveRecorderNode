@@ -88,6 +88,7 @@
       ok-text="保存"
       cancel-text="取消"
       modal-class="add-room-modal"
+      draggable
       @before-ok="handleAddOk"
       @cancel="addForm.url = ''"
     >
@@ -245,7 +246,8 @@ function openAddModal(): void {
 }
 
 function extractUrl(text: string): string {
-  return text.match(/https?:\/\/[^\s<>，。；、]+/i)?.[0] || "";
+  const url = text.match(/https?:\/\/[^\s<>，。；、]+/i)?.[0] || "";
+  return url.match(/https?:\/\/webcast\.amemv\.com\/douyin\/webcast\/reflow\/[^\s/?#]+/i)?.[0] || url;
 }
 
 function handleShareLinkPaste(event: ClipboardEvent): void {

@@ -7,7 +7,7 @@
       <template #checked>启用</template>
       <template #unchecked>注释</template>
     </a-switch>
-    <a-tooltip content="查看已录制文件">
+    <a-tooltip v-if="row.name" content="查看已录制文件">
       <a-button type="text" @click="actions?.openRecordings(row)">
         <template #icon><icon-video-camera /></template>
       </a-button>

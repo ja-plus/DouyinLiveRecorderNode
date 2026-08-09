@@ -4,6 +4,7 @@
     :title="`已录制文件 - ${anchorName}`"
     :footer="false"
     modal-class="recordings-modal"
+    draggable
     unmount-on-close
     @update:visible="onVisibleChange"
     @close="onListClose"
@@ -37,6 +38,7 @@
     :title="playing?.name || '播放'"
     :footer="false"
     modal-class="player-modal"
+    draggable
     unmount-on-close
     @close="stopPlay"
   >
@@ -80,7 +82,7 @@ const columns: StkTableColumn<RecordingRow>[] = [
   {
     title: "操作",
     dataIndex: "_action" as never,
-    width: 120,
+    width: 150,
     align: "center",
     fixed: "right",
     customCell: markRaw(RecordingActionCell),
@@ -197,6 +199,18 @@ function stopPlay(): void {
   playing.value = null;
 }
 
+// ==== 下载 ====
+function download(row: RecordingItem): void {
+  // 同源请求会自动携带鉴权 Cookie；用临时 <a download> 触发浏览器下载，
+  // 由后端的 Content-Disposition: attachment 决定保存文件名。
+  const a = document.createElement("a");
+  a.href = API.recordingDownload(row.file);
+  a.download = row.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 // ==== 删除 ====
 async function remove(row: RecordingItem): Promise<void> {
   try {
@@ -211,7 +225,7 @@ async function remove(row: RecordingItem): Promise<void> {
   }
 }
 
-provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play, remove });
+provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play, download, remove });
 </script>
 
 <style>
