@@ -20,11 +20,4 @@ export const OWN_CONFIG_PATH = path.join(MANAGER_DIR, "config.js");
 export const ENCODING = "utf-8";
 export const QUALITIES = ["原画", "蓝光", "超清", "高清", "标清", "流畅"];
 // 录制列表和删除接口只处理这些媒体文件类型。
-export const VIDEO_EXTS = new Set([
-  ".flv",
-  ".ts",
-  ".mp4",
-  ".mkv",
-  ".mp3",
-  ".m4a",
-]);
+export const VIDEO_EXTS = new Set([ ".flv", ".ts", ".mp4", ".mkv", ".mp3", ".m4a", ]);

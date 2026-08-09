@@ -17,9 +17,11 @@
           :theme="isDark ? 'dark' : 'light'"
           :columns="columns"
           :data-source="items"
-          :row-height="40"
+          :row-height="108"
           no-data-full
-          fixed-col-shadow
+          :row-active="false"
+          :row-hover="false"
+          headless
           bordered
           stripe
           virtual
@@ -52,7 +54,7 @@ import { StkTable, type StkTableColumn } from "stk-table-vue";
 import { Message } from "@arco-design/web-vue";
 import http from "../http";
 import { API } from "../api";
-import RecordingActionCell from "./RecordingActionCell.vue";
+import RecordingPanelCell from "./RecordingPanelCell.vue";
 import { isDark } from "../composables/useTheme";
 import {
   RECORDING_ACTIONS_KEY,
@@ -70,22 +72,9 @@ const loading = ref(false);
 
 const columns: StkTableColumn<RecordingRow>[] = [
   {
-    type: "seq",
     title: "",
-    dataIndex: "" as never,
-    width: 40,
-    align: "center",
-  },
-  { title: "文件名", dataIndex: "name", minWidth: 240 },
-  { title: "大小", dataIndex: "sizeText", width: 90, align: "right" },
-  { title: "录制时间", dataIndex: "timeText", width: 160 },
-  {
-    title: "操作",
-    dataIndex: "_action" as never,
-    width: 150,
-    align: "center",
-    fixed: "right",
-    customCell: markRaw(RecordingActionCell),
+    dataIndex: "id" as never,
+    customCell: markRaw(RecordingPanelCell),
   },
 ];
 
@@ -231,7 +220,7 @@ provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play, download, remove });
 <style>
 /* 弹窗挂在 body 下，scoped 样式作用不到 */
 .arco-modal.recordings-modal {
-  width: 780px;
+  width: 480px;
   max-width: 94vw;
 }
 
@@ -255,6 +244,20 @@ provide<RecordingActions>(RECORDING_ACTIONS_KEY, { play, download, remove });
   height: 100%;
   background: var(--color-bg-2, #fff);
   border-radius: 6px;
+}
+
+.rec-table :deep(.stk-table-main) {
+  border-spacing: 0 8px;
+}
+
+.rec-table :deep(tbody tr) {
+  background: transparent;
+}
+
+.rec-table :deep(td) {
+  border: none;
+  padding: 0;
+  background: transparent;
 }
 
 .player-video {

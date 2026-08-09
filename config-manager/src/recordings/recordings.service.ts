@@ -49,7 +49,9 @@ export function listRecordings(
           size: stat.size,
           mtime: stat.mtimeMs,
         });
-      } catch {}
+      } catch(e) {
+        console.error(e);
+      }
     }
   };
   if (fs.existsSync(baseDir)) walk(baseDir);
