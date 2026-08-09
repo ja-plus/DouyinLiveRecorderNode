@@ -62,13 +62,19 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
 
   const streams: StreamEntry[] = [
     {
-      level,
+      level: level as Level,
       stream: pretty({
-        colorize: true,
+        // colorize 由 pino-pretty 自动检测（isColorSupported）：TTY 终端启用颜色，
+        // 管道/文件重定向时禁用，避免 ANSI 转义码残留。
         translateTime: "SYS:yyyy-mm-dd HH:MM:ss.l",
         ignore: "pid,hostname",
         singleLine: true,
-        destination: 1,
+        // 必须用 process.stdout（stream）而非 fd 1（数字）：
+        // pino-pretty 检测到 destination 是 stream 时直接调用 stream.write()，
+        // 经过 Node.js TTY 的 Unicode 编码处理（Windows 上用 WriteConsoleW 输出 UTF-16）。
+        // 若传 fd 1，pino-pretty 改用 SonicBoom 的 fs.writeSync(1, buf) 直接写字节，
+        // 绕过 Node.js 编码处理，Windows 控制台按 GBK 解码 UTF-8 → 中文乱码。
+        destination: process.stdout,
       }),
     },
   ];
