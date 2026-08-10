@@ -15,6 +15,7 @@
       >
         <a-menu-item key="urlConfig">直播间管理</a-menu-item>
         <a-menu-item key="appConfig">系统配置</a-menu-item>
+        <a-menu-item key="logs">系统日志</a-menu-item>
         <!-- 后续扩展页面在此添加菜单项，key 与路由 name 保持一致 -->
       </a-menu>
       <a-button v-if="loginEnabled" class="logout-button" type="text" @click="signOut">

@@ -4,11 +4,13 @@ import { LoggerModule } from "./common/logger.js";
 import { ConfigModule } from "./config/config.module.js";
 import { RecordingsModule } from "./recordings/recordings.module.js";
 import { RecordingStatusModule } from "./recording-status/recording-status.module.js";
+import { LogsModule } from "./logs/logs.module.js";
 
 export function createAppModule(
   AuthModule: DynamicModule,
   recorderStatusUrl: string,
   logger: Logger,
+  sqliteLogPath: string,
 ): DynamicModule {
   // 鉴权配置在启动时确定，因此动态组装根模块。
   @Module({
@@ -19,6 +21,7 @@ export function createAppModule(
       ConfigModule,
       RecordingsModule,
       RecordingStatusModule.forRoot(recorderStatusUrl, logger),
+      LogsModule.forRoot(sqliteLogPath),
     ],
   })
   class AppModule {}

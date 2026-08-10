@@ -9,6 +9,7 @@ import {
 import pino, { type Logger, type StreamEntry, type Level, type LevelWithSilent } from "pino";
 import pretty from "pino-pretty";
 import { ROOT_DIR } from "./paths.js";
+import { SqliteLogStream } from "./sqlite-log-stream.js";
 
 /** 全局可注入的 pino Logger 令牌 */
 export const LOGGER_TOKEN = Symbol("config-manager/LOGGER");
@@ -25,12 +26,20 @@ export const ALLOWED_LEVELS = new Set([
 ]);
 
 export type CreateLoggerOptions = {
-  /** 日志级别，默认 info */
+  /** 日志级别（文件/数据库流的级别），默认 info */
   level?: string;
+  /** 控制台日志级别，默认与 level 一致。
+   *  生产环境建议设为 warn，避免大量 info 请求日志经 pino-pretty 同步格式化导致 CPU 飙升。
+   *  文件和数据库仍按 level 记录完整日志，不影响排查。 */
+  consoleLevel?: string;
+  /** 是否启用日志持久化（文件 + SQLite）；false 时仅输出控制台，默认 false */
+  enableLog?: boolean;
   /** 日志文件目录；为空则仅输出控制台。相对路径以项目根目录为基准 */
   logDir?: string;
   /** 日志文件名，默认 config-manager.log */
   logFile?: string;
+  /** SQLite 数据库路径；为空则不持久化。相对路径以项目根目录为基准 */
+  sqlitePath?: string;
 };
 
 /**
@@ -47,7 +56,17 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
   // silent 级别不创建流，直接返回静默 logger。
   if (level === "silent") return pino({ level: "silent" });
 
-  // 请求日志序列化：脱敏 Cookie / Authorization，保留 method/url
+  // 控制台级别：独立于 level，可设更高以减少 pino-pretty 同步格式化的 CPU 开销。
+  // 默认与 level 一致；生产环境建议设为 warn，仅输出警告和错误到控制台。
+  const consoleLevel = (
+    ALLOWED_LEVELS.has(options.consoleLevel || "")
+      ? options.consoleLevel
+      : level
+  ) as LevelWithSilent;
+
+  // 请求日志序列化：脱敏 Cookie / Authorization，保留 method/url。
+  // 不在此处记录 req.body：Fastify 在 onRequest 阶段记录请求日志时 body 尚未解析，
+  // 请求体改由 main.ts 的 preHandler 钩子单独记录（此时 body 已可用）。
   const serializers = {
     req(req: { method?: string; url?: string; headers?: Record<string, string> }) {
       const headers = { ...(req.headers || {}) };
@@ -62,7 +81,8 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
 
   const streams: StreamEntry[] = [
     {
-      level: level as Level,
+      // 控制台流使用独立的 consoleLevel，可高于 level 以减少格式化开销
+      level: consoleLevel as Level,
       stream: pretty({
         // colorize 由 pino-pretty 自动检测（isColorSupported）：TTY 终端启用颜色，
         // 管道/文件重定向时禁用，避免 ANSI 转义码残留。
@@ -79,8 +99,12 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
     },
   ];
 
+  // enableLog 为总开关：false 时跳过文件和 SQLite 持久化，仅保留控制台输出。
+  // 这样用户可通过一个开关快速关闭持久化，而不必清空 logDir / sqliteLogPath。
+  const enableLog = options.enableLog === true;
+
   const logDir = (options.logDir || "").trim();
-  if (logDir) {
+  if (enableLog && logDir) {
     const dir = path.isAbsolute(logDir)
       ? logDir
       : path.resolve(ROOT_DIR, logDir);
@@ -89,6 +113,20 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
     streams.push({
       level,
       stream: fs.createWriteStream(file, { flags: "a" }),
+    });
+  }
+
+  // SQLite 持久化流：将日志写入数据库，支持结构化查询
+  const sqlitePath = (options.sqlitePath || "").trim();
+  if (enableLog && sqlitePath) {
+    const dbFile = path.isAbsolute(sqlitePath)
+      ? sqlitePath
+      : path.resolve(ROOT_DIR, sqlitePath);
+    const dbDir = path.dirname(dbFile);
+    fs.mkdirSync(dbDir, { recursive: true });
+    streams.push({
+      level,
+      stream: new SqliteLogStream(dbFile),
     });
   }
 

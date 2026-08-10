@@ -24,8 +24,19 @@
  *                     微服务架构下 config-manager 通过此地址订阅 SSE 状态流；
  *                     不填则实时录制状态不可用（其余功能不受影响）。
  *   logLevel        日志级别：trace/debug/info/warn/error/fatal/silent，默认 info
- *   logDir          日志文件目录；相对路径以项目根目录为基准，留空则仅输出控制台。
+ *                   控制文件和数据库流的日志级别。
+ *   consoleLogLevel 控制台日志级别，留空则与 logLevel 一致。
+ *                   生产环境建议设为 warn：控制台只输出警告和错误，避免大量 info 请求日志
+ *                   经 pino-pretty 同步格式化导致 CPU 飙升。文件和数据库仍按 logLevel 记录完整日志。
+ *   enableLog       日志持久化总开关（true/false），默认 false。
+ *                   - false：仅输出控制台日志，忽略 logDir 和 sqliteLogPath
+ *                   - true：按 logDir 和 sqliteLogPath 配置，同时持久化到文件和数据库
+ *   logDir          日志文件目录；相对路径以项目根目录为基准，留空则不写文件。
  *                   日志以 NDJSON 追加写入 logDir/config-manager.log，建议配合 logrotate 滚动。
+ *                   仅在 enableLog=true 时生效。
+ *   sqliteLogPath   SQLite 日志数据库路径；相对路径以项目根目录为基准，留空则不持久化到数据库。
+ *                   启用后可在管理台"系统日志"页面查询日志，支持按级别、时间、关键词过滤。
+ *                   仅在 enableLog=true 时生效。
  *
  * 配置变更后，重启 pnpm run config-manager（或 bun:config-manager）生效。
  */
@@ -43,9 +54,18 @@ export default {
   authCookieMaxAgeDays: 30,
   recorderStatusUrl: 'http://127.0.0.1:5001',
   // 日志级别：trace/debug/info/warn/error/fatal/silent，默认 info
+  // 控制文件和数据库流的日志级别
   logLevel: 'info',
-  // 日志文件目录；相对路径以项目根目录为基准，留空则仅输出控制台
+  // 控制台日志级别：留空则与 logLevel 一致
+  // 生产环境建议设为 'warn'，避免大量请求日志经 pino-pretty 同步格式化导致 CPU 飙升
+  consoleLogLevel: 'warn',
+  // 日志持久化总开关：false 仅控制台输出，true 同时持久化到文件和数据库
+  enableLog: false,
+  // 日志文件目录；相对路径以项目根目录为基准，留空则不写文件
   logDir: '',
+  // SQLite 日志数据库路径；相对路径以项目根目录为基准，留空则不持久化
+  // 示例：'logs/config-manager.db' 或 'D:/logs/app.db'
+  sqliteLogPath: 'logs/config-manager.db',
   // certPath: './server.crt',
   // keyPath: './server.key'
 };

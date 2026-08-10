@@ -19,6 +19,12 @@ const router = createRouter({
       component: () => import('../views/AppConfigView.vue'),
       meta: { title: '系统配置' },
     },
+    {
+      path: '/logs',
+      name: 'logs',
+      component: () => import('../views/LogsView.vue'),
+      meta: { title: '系统日志' },
+    },
     // 后续扩展页面在此添加路由，并在 App.vue 顶栏菜单中加对应菜单项
   ],
 });

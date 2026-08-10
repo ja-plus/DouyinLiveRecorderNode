@@ -48,7 +48,10 @@ export async function startServer(options = {}) {
     const { settings, loadError } = await getServerSettings();
     const logger = createLogger({
         level: settings.logLevel,
+        consoleLevel: settings.consoleLogLevel,
+        enableLog: settings.enableLog,
         logDir: settings.logDir,
+        sqlitePath: settings.sqliteLogPath,
     });
     if (loadError)
         logger.warn({ err: loadError }, "config.js 加载失败，使用默认配置");
@@ -84,13 +87,32 @@ export async function startServer(options = {}) {
     // 鉴权钩子读取会话令牌前，必须先注册 Cookie 解析。
     await app.register(fastifyCookie);
     const auth = createAuthModule(settings, http2, logger);
-    const nestApp = await NestFactory.create(createAppModule(auth.AuthModule, settings.recorderStatusUrl, logger), adapter, { logger: new NestPinoLogger(logger) });
+    const nestApp = await NestFactory.create(createAppModule(auth.AuthModule, settings.recorderStatusUrl, logger, settings.sqliteLogPath), adapter, { logger: new NestPinoLogger(logger) });
     // 静态/媒体资源请求日志降级，避免高频资源请求刷屏。
     app.addHook("onRequest", (request, _reply, done) => {
         const url = request.url.split("?")[0];
         if (url.startsWith("/api/video/") ||
             /\.(?:js|css|map|png|jpe?g|gif|svg|ico|woff2?|ttf|mp4|flv|ts|mkv|mp3|m4a)$/i.test(url))
             request.log.level = "warn";
+        done();
+    });
+    // 在 body 解析完成后、鉴权前记录请求体，便于排查接口调用问题。
+    // 仅对有 body 的请求记录（POST/PUT/PATCH），脱敏密码等敏感字段。
+    app.addHook("preHandler", (request, _reply, done) => {
+        const body = request.body;
+        if (body && typeof body === "object" && Object.keys(body).length > 0) {
+            const safe = { ...body };
+            for (const key of [
+                "password",
+                "loginPassword",
+                "authSecret",
+                "cookie",
+                "token",
+            ])
+                if (key in safe)
+                    safe[key] = "[REDACTED]";
+            request.log.info({ body: safe }, "收到请求体");
+        }
         done();
     });
     // 保护 API 路由，同时让登录页所需的静态资源可以访问。

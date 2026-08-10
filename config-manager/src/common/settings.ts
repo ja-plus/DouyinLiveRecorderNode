@@ -30,8 +30,14 @@ export type ServerSettings = {
   recorderStatusUrl: string;
   /** 日志级别：trace/debug/info/warn/error/fatal/silent */
   logLevel: string;
+  /** 控制台日志级别；默认与 logLevel 一致，生产环境建议设为 warn 以降低 CPU 开销 */
+  consoleLogLevel: string;
+  /** 是否启用日志持久化（文件 + SQLite）；false 时仅输出控制台，忽略 logDir/sqliteLogPath */
+  enableLog: boolean;
   /** 日志文件目录；为空则仅控制台输出。相对路径以项目根目录为基准 */
   logDir: string;
+  /** SQLite 日志数据库路径；为空则不持久化。相对路径以项目根目录为基准 */
+  sqliteLogPath: string;
 };
 export const DEFAULT_SETTINGS: ServerSettings = {
   enableHttp2: false,
@@ -46,7 +52,10 @@ export const DEFAULT_SETTINGS: ServerSettings = {
   authCookieMaxAgeDays: 30,
   recorderStatusUrl: "",
   logLevel: "info",
+  consoleLogLevel: "",
+  enableLog: false,
   logDir: "",
+  sqliteLogPath: "",
 };
 
 export async function getServerSettings(): Promise<{
@@ -92,10 +101,23 @@ export async function getServerSettings(): Promise<{
       ALLOWED_LEVELS.has(config.logLevel)
     )
       settings.logLevel = config.logLevel;
+    if (
+      typeof config.consoleLogLevel === "string" &&
+      ALLOWED_LEVELS.has(config.consoleLogLevel)
+    )
+      settings.consoleLogLevel = config.consoleLogLevel;
+    if (typeof config.enableLog === "boolean")
+      settings.enableLog = config.enableLog;
+    else if (["是", "true", 1, "1"].includes(config.enableLog as never))
+      settings.enableLog = true;
     if (typeof config.logDir === "string" && config.logDir.trim())
       settings.logDir = path.isAbsolute(config.logDir)
         ? config.logDir.trim()
         : path.resolve(ROOT_DIR, config.logDir.trim());
+    if (typeof config.sqliteLogPath === "string" && config.sqliteLogPath.trim())
+      settings.sqliteLogPath = path.isAbsolute(config.sqliteLogPath)
+        ? config.sqliteLogPath.trim()
+        : path.resolve(ROOT_DIR, config.sqliteLogPath.trim());
   } catch (error) {
     // 配置加载失败时返回默认值 + 错误信息，由调用方记录日志后继续启动。
     return { settings, loadError: error };

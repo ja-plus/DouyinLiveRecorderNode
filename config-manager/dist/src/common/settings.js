@@ -17,7 +17,10 @@ export const DEFAULT_SETTINGS = {
     authCookieMaxAgeDays: 30,
     recorderStatusUrl: "",
     logLevel: "info",
+    consoleLogLevel: "",
+    enableLog: false,
     logDir: "",
+    sqliteLogPath: "",
 };
 export async function getServerSettings() {
     // config.js 缺失或格式异常时保留默认值，确保管理服务仍能启动。
@@ -58,10 +61,21 @@ export async function getServerSettings() {
         if (typeof config.logLevel === "string" &&
             ALLOWED_LEVELS.has(config.logLevel))
             settings.logLevel = config.logLevel;
+        if (typeof config.consoleLogLevel === "string" &&
+            ALLOWED_LEVELS.has(config.consoleLogLevel))
+            settings.consoleLogLevel = config.consoleLogLevel;
+        if (typeof config.enableLog === "boolean")
+            settings.enableLog = config.enableLog;
+        else if (["是", "true", 1, "1"].includes(config.enableLog))
+            settings.enableLog = true;
         if (typeof config.logDir === "string" && config.logDir.trim())
             settings.logDir = path.isAbsolute(config.logDir)
                 ? config.logDir.trim()
                 : path.resolve(ROOT_DIR, config.logDir.trim());
+        if (typeof config.sqliteLogPath === "string" && config.sqliteLogPath.trim())
+            settings.sqliteLogPath = path.isAbsolute(config.sqliteLogPath)
+                ? config.sqliteLogPath.trim()
+                : path.resolve(ROOT_DIR, config.sqliteLogPath.trim());
     }
     catch (error) {
         // 配置加载失败时返回默认值 + 错误信息，由调用方记录日志后继续启动。

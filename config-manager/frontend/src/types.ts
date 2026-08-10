@@ -69,6 +69,32 @@ export interface CellProps<T extends object> {
   rowIndex?: number;
 }
 
+/** 日志表格行（与后端 /api/logs 返回结构一致） */
+export interface LogItem {
+  id: number;
+  time: string;
+  level: number;
+  msg: string;
+  context: string | null;
+  raw: string;
+}
+
+/** 日志表格展示行：接口数据 + 格式化字段 */
+export interface LogRow extends LogItem {
+  /** 格式化后的本地时间 */
+  timeText: string;
+  /** 上下文显示文本（空时为 "-"） */
+  contextText: string;
+}
+
+/** 通过 provide/inject 提供给日志操作单元格的方法 */
+export interface LogActions {
+  /** 查看日志详情 */
+  showDetail: (row: LogRow) => void;
+}
+
+export const LOG_ACTIONS_KEY = 'logActions';
+
 /** 通过 provide/inject 提供给单元格组件的操作方法 */
 export interface ConfigActions {
   /** 软删除：将行标记为已删除（置灰），保存时才真正移除 */

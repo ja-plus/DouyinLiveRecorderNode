@@ -11,6 +11,7 @@ import { Global, Module, } from "@nestjs/common";
 import pino from "pino";
 import pretty from "pino-pretty";
 import { ROOT_DIR } from "./paths.js";
+import { SqliteLogStream } from "./sqlite-log-stream.js";
 /** 全局可注入的 pino Logger 令牌 */
 export const LOGGER_TOKEN = Symbol("config-manager/LOGGER");
 /** 合法日志级别集合，供 settings 校验复用 */
@@ -35,7 +36,14 @@ export function createLogger(options = {}) {
     // silent 级别不创建流，直接返回静默 logger。
     if (level === "silent")
         return pino({ level: "silent" });
-    // 请求日志序列化：脱敏 Cookie / Authorization，保留 method/url
+    // 控制台级别：独立于 level，可设更高以减少 pino-pretty 同步格式化的 CPU 开销。
+    // 默认与 level 一致；生产环境建议设为 warn，仅输出警告和错误到控制台。
+    const consoleLevel = (ALLOWED_LEVELS.has(options.consoleLevel || "")
+        ? options.consoleLevel
+        : level);
+    // 请求日志序列化：脱敏 Cookie / Authorization，保留 method/url。
+    // 不在此处记录 req.body：Fastify 在 onRequest 阶段记录请求日志时 body 尚未解析，
+    // 请求体改由 main.ts 的 preHandler 钩子单独记录（此时 body 已可用）。
     const serializers = {
         req(req) {
             const headers = { ...(req.headers || {}) };
@@ -51,7 +59,8 @@ export function createLogger(options = {}) {
     };
     const streams = [
         {
-            level: level,
+            // 控制台流使用独立的 consoleLevel，可高于 level 以减少格式化开销
+            level: consoleLevel,
             stream: pretty({
                 // colorize 由 pino-pretty 自动检测（isColorSupported）：TTY 终端启用颜色，
                 // 管道/文件重定向时禁用，避免 ANSI 转义码残留。
@@ -67,8 +76,11 @@ export function createLogger(options = {}) {
             }),
         },
     ];
+    // enableLog 为总开关：false 时跳过文件和 SQLite 持久化，仅保留控制台输出。
+    // 这样用户可通过一个开关快速关闭持久化，而不必清空 logDir / sqliteLogPath。
+    const enableLog = options.enableLog === true;
     const logDir = (options.logDir || "").trim();
-    if (logDir) {
+    if (enableLog && logDir) {
         const dir = path.isAbsolute(logDir)
             ? logDir
             : path.resolve(ROOT_DIR, logDir);
@@ -77,6 +89,19 @@ export function createLogger(options = {}) {
         streams.push({
             level,
             stream: fs.createWriteStream(file, { flags: "a" }),
+        });
+    }
+    // SQLite 持久化流：将日志写入数据库，支持结构化查询
+    const sqlitePath = (options.sqlitePath || "").trim();
+    if (enableLog && sqlitePath) {
+        const dbFile = path.isAbsolute(sqlitePath)
+            ? sqlitePath
+            : path.resolve(ROOT_DIR, sqlitePath);
+        const dbDir = path.dirname(dbFile);
+        fs.mkdirSync(dbDir, { recursive: true });
+        streams.push({
+            level,
+            stream: new SqliteLogStream(dbFile),
         });
     }
     return pino({
