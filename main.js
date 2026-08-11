@@ -247,6 +247,8 @@ async function startRecord(urlData, countVariable) {
             if (!anchorNameConfig && !nameWrittenBack && anchorName) {
               updateFile(URL_CONFIG_FILE, recordUrl, `${recordUrl},主播: ${anchorName}`);
               nameWrittenBack = true;
+              // 通过状态总线通知 config-manager → 前端自动刷新主播名
+              recordingStateBus.emit('name-update', { url: recordUrl, name: anchorName });
             }
 
             const pushAt = new Date().toLocaleString('zh-CN');
@@ -597,10 +599,15 @@ async function startStatusServer() {
       /** @param {{recording: unknown[], monitoring: number, updatedAt: string}} snap */
       const send = (snap) => res.write(`data: ${JSON.stringify(snap)}\n\n`);
       recordingStateBus.on('change', send);
+      // 主播名更新：录制器回写名称后以命名事件推送，config-manager 中继给浏览器
+      /** @param {{url: string, name: string}} upd */
+      const sendNameUpdate = (upd) => res.write(`event: name-update\ndata: ${JSON.stringify(upd)}\n\n`);
+      recordingStateBus.on('name-update', sendNameUpdate);
       // 心跳：防止代理/负载均衡因长时间无数据而掐断连接。
       const heartbeat = setInterval(() => res.write(': ping\n\n'), 15000);
       req.on('close', () => {
         recordingStateBus.off('change', send);
+        recordingStateBus.off('name-update', sendNameUpdate);
         clearInterval(heartbeat);
       });
       return;

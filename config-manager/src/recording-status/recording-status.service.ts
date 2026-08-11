@@ -26,6 +26,12 @@ export type RecordingSnapshot = {
 /** 推给浏览器的快照，额外带录制器在线标记 */
 export type BrowserSnapshot = RecordingSnapshot & { recorderOnline: boolean };
 
+/** 录制器回写主播名后推送的名称更新 */
+export type NameUpdate = {
+  url: string;
+  name: string;
+};
+
 /**
  * 录制状态中继服务：
  * 1. 作为 SSE 客户端连接录制器（main.js）的 /recording-status/stream
@@ -158,19 +164,36 @@ export class RecordingStatusService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** 解析一段 SSE chunk，提取 data: 行并更新快照 */
+  /**
+   * 解析一段 SSE chunk，根据 event: 字段区分消息类型：
+   * - 默认（无 event: 行）：录制状态快照
+   * - name-update：主播名更新（录制器回写名称后推送）
+   */
   private handleSseChunk(chunk: string): void {
-    const dataLines = chunk
-      .split("\n")
-      .filter((l) => l.startsWith("data:"))
-      .map((l) => l.slice(5).trim());
+    let eventType = "message";
+    const dataLines: string[] = [];
+    for (const line of chunk.split("\n")) {
+      if (line.startsWith("event:")) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trim());
+      }
+    }
     if (!dataLines.length) return; // 忽略心跳注释（: ping）等
+
     try {
-      const snapshot = JSON.parse(dataLines.join("\n")) as RecordingSnapshot;
-      this.currentSnapshot = { ...snapshot, recorderOnline: true };
-      this.broadcast(this.currentSnapshot);
+      const data = dataLines.join("\n");
+      if (eventType === "name-update") {
+        // 主播名更新：中继给所有浏览器客户端
+        const update = JSON.parse(data) as NameUpdate;
+        this.broadcastNameUpdate(update);
+      } else {
+        // 默认：录制状态快照
+        const snapshot = JSON.parse(data) as RecordingSnapshot;
+        this.currentSnapshot = { ...snapshot, recorderOnline: true };
+        this.broadcast(this.currentSnapshot);
+      }
     } catch (err) {
-      // 解析失败时忽略，等待下一条完整事件
       this.logger.warn(
         { chunk: chunk.slice(0, 200), err },
         "SSE 数据解析失败，已跳过",
@@ -207,6 +230,19 @@ export class RecordingStatusService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       // 写入失败（客户端已断开）时记录，close 事件会清理
       this.logger.debug({ err }, "SSE 写入失败，客户端可能已断开");
+    }
+  }
+
+  /** 向所有浏览器客户端中继主播名更新（SSE 命名事件） */
+  private broadcastNameUpdate(update: NameUpdate): void {
+    if (this.browserClients.size === 0) return;
+    const payload = `event: name-update\ndata: ${JSON.stringify(update)}\n\n`;
+    for (const client of this.browserClients) {
+      try {
+        client.raw.write(payload);
+      } catch (err) {
+        this.logger.debug({ err }, "名称更新 SSE 写入失败，客户端可能已断开");
+      }
     }
   }
 }

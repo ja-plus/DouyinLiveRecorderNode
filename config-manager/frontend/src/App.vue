@@ -18,10 +18,44 @@
         <a-menu-item key="logs">系统日志</a-menu-item>
         <!-- 后续扩展页面在此添加菜单项，key 与路由 name 保持一致 -->
       </a-menu>
-      <a-button v-if="loginEnabled" class="logout-button" type="text" @click="signOut">
-        <template #icon><icon-export /></template>
-        退出登录
-      </a-button>
+      <div class="topbar-actions">
+        <a-dropdown trigger="click" position="br" :popup-max-height="false" @select="onThemeSelect">
+          <a-button class="theme-button" type="text" aria-label="切换主题">
+            <template #icon>
+              <icon-sun-fill v-if="themeMode === 'light'" />
+              <icon-moon-fill v-else-if="themeMode === 'dark'" />
+              <icon-desktop v-else />
+            </template>
+          </a-button>
+          <template #content>
+            <a-doption value="light">
+              <div class="theme-option">
+                <icon-sun />
+                <span>亮色</span>
+                <icon-check v-if="themeMode === 'light'" class="theme-check" />
+              </div>
+            </a-doption>
+            <a-doption value="dark">
+              <div class="theme-option">
+                <icon-moon />
+                <span>暗色</span>
+                <icon-check v-if="themeMode === 'dark'" class="theme-check" />
+              </div>
+            </a-doption>
+            <a-doption value="auto">
+              <div class="theme-option">
+                <icon-desktop />
+                <span>跟随系统</span>
+                <icon-check v-if="themeMode === 'auto'" class="theme-check" />
+              </div>
+            </a-doption>
+          </template>
+        </a-dropdown>
+        <a-button v-if="loginEnabled" class="logout-button" type="text" @click="signOut">
+          <template #icon><icon-export /></template>
+          退出登录
+        </a-button>
+      </div>
     </a-layout-header>
 
     <a-layout-content class="content">
@@ -60,6 +94,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getAuthStatus, logout } from './auth';
 import { isMobile } from './composables/useMobile';
+import { themeMode, setThemeMode, type ThemeMode } from './composables/useTheme';
 
 const route = useRoute();
 const router = useRouter();
@@ -81,6 +116,12 @@ function onMenuItemClick(key: string): void {
 async function signOut(): Promise<void> {
   await logout();
   await router.replace({ name: 'login' });
+}
+
+function onThemeSelect(value: string | number | Record<string, any> | undefined): void {
+  if (value === 'light' || value === 'dark' || value === 'auto') {
+    setThemeMode(value as ThemeMode);
+  }
 }
 </script>
 
@@ -134,6 +175,21 @@ body[arco-theme='dark'] {
     scrollbar-color: var(--color-fill-4, #c9cdd4) transparent;
   }
 }
+
+/* 主题切换下拉项：下拉面板会被 teleport 到 body，故放在全局样式中 */
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 140px;
+}
+.theme-option :where(svg, .arco-icon) {
+  font-size: 16px;
+}
+.theme-check {
+  margin-left: auto;
+  color: rgb(var(--primary-6, 22, 93, 255));
+}
 </style>
 
 <style scoped>
@@ -173,8 +229,18 @@ body[arco-theme='dark'] {
   min-width: 0;
   background: transparent;
 }
-.logout-button {
+.topbar-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.theme-button {
+  color: var(--color-text-1, #1d2129);
+}
+.theme-button :deep(.arco-icon) {
+  font-size: 18px;
 }
 
 /* 移动端：压缩间距和菜单项内边距，保证顶栏单行摆下 */

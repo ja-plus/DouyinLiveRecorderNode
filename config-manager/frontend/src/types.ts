@@ -181,3 +181,11 @@ export interface RecordingStatusSnapshot {
   /** 录制器（main.js）是否在线 */
   recorderOnline: boolean;
 }
+
+/** 后端 SSE 推送的主播名更新（录制器回写名称后触发） */
+export interface NameUpdate {
+  /** 直播间地址，与 UrlRow.url 匹配 */
+  url: string;
+  /** 录制器获取到的主播名 */
+  name: string;
+}

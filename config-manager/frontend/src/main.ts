@@ -2,7 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 
-// 初始化主题（跟随系统颜色）
+// 初始化主题（亮色/暗色/跟随系统，由 useTheme 读取 localStorage 决定）
 import './composables/useTheme';
 
 // stk-table-vue 样式

@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { API } from '../api';
-import type { RecordingStatusItem, RecordingStatusSnapshot } from '../types';
+import type { NameUpdate, RecordingStatusItem, RecordingStatusSnapshot } from '../types';
 
 /**
  * 录制状态实时订阅（模块级单例）。
@@ -27,6 +27,9 @@ const connectionState = ref<ConnectionState>('disconnected');
 
 /** 1s 跳动的「当前时间」，驱动已录时长文本刷新 */
 const now = ref(Date.now());
+
+/** 最近一次主播名更新（录制器回写名称后推送），组件 watch 此 ref 自动刷新 */
+const latestNameUpdate = ref<NameUpdate | null>(null);
 
 let es: EventSource | null = null;
 let everConnected = false;
@@ -64,6 +67,15 @@ function openEventSource(): void {
       // 解析失败忽略，等待下一条
     }
   };
+  // 主播名更新：录制器回写名称后以 SSE 命名事件推送
+  es.addEventListener('name-update', (ev: MessageEvent) => {
+    try {
+      latestNameUpdate.value = JSON.parse(ev.data) as NameUpdate;
+    } catch(e) {
+      // 解析失败忽略
+      console.error(e)
+    }
+  });
   es.onerror = () => {
     if (es?.readyState === EventSource.CLOSED) {
       es?.close();
@@ -123,5 +135,6 @@ export function useRecordingStatus() {
     connectionState,
     now,
     elapsedText,
+    latestNameUpdate,
   };
 }

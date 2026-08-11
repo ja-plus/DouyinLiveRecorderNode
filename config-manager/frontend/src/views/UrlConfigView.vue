@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, provide, markRaw } from "vue";
+import { ref, reactive, computed, onMounted, watch, provide, markRaw } from "vue";
 import { StkTable, type StkTableColumn } from "stk-table-vue";
 import { Message } from "@arco-design/web-vue";
 import http from "../http";
@@ -215,6 +215,7 @@ const {
   monitoring: monitoringCount,
   connectionState,
   recorderOnline,
+  latestNameUpdate,
 } = useRecordingStatus();
 const recordingCount = computed(() => recordingMap.value.size);
 
@@ -425,6 +426,25 @@ const contentSnapshot = computed(() =>
 );
 const savedSnapshot = ref(contentSnapshot.value);
 const dirty = computed(() => contentSnapshot.value !== savedSnapshot.value);
+
+// 主播名自动更新：录制器回写名称后通过录制状态 SSE 命名事件推送，
+// 此处 watch latestNameUpdate（来自 useRecordingStatus 单例）自动刷新空名称行
+watch(latestNameUpdate, (update) => {
+  if (!update) return;
+  // 仅更新当前名称为空的行，避免覆盖用户手动输入的名称
+  const row = rows.value.find(
+    (r) => r.url === update.url && !r.name.trim() && !r.deleted,
+  );
+  if (row) {
+    const wasDirty = dirty.value;
+    row.name = update.name;
+    // Message.info("已自动刷新主播名");
+    // 若之前没有未保存的改动，同步基线快照以保持 dirty=false
+    if (!wasDirty) {
+      savedSnapshot.value = contentSnapshot.value;
+    }
+  }
+});
 
 onMounted(load);
 </script>
