@@ -1,0 +1,16 @@
+node_modules/
+.git/
+.gitignore/
+logs/
+downloads/
+backup_config/
+*.log
+*.pid
+.trae-cn/
+.qoder/
+screenshots/
+config-manager/.config-manager.pid
+# 保留 config-manager/dist/ 和 config-manager/static/（构建产物）
+# 如需在容器内重新构建，可取消下面两行注释
+# config-manager/dist/
+# config-manager/static/

@@ -1,0 +1,75 @@
+# ============================================================
+#  LiveRecorder-node Docker Compose
+#  两个独立服务：recorder（录制器）+ config-manager（Web 管理台）
+#
+#  快速启动：
+#    docker compose up -d --build
+#
+#  访问管理台：http://localhost:5000  （默认账号 admin / admin）
+#  录制状态接口：http://localhost:5001/recording-status
+# ============================================================
+
+services:
+  # ---- 录制器服务 ----
+  # 运行 main.js，负责直播录制与状态服务（端口 5001）
+  recorder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: live-recorder-node:latest
+    container_name: recorder
+    restart: unless-stopped
+    command: ["node", "--max-semi-space-size=4", "--max-old-space-size=256", "main.js"]
+    ports:
+      - "${RECORDER_STATUS_PORT:-5001}:5001"
+    volumes:
+      # 配置文件（持久化，可在宿主机直接编辑）
+      - ./config:/app/config
+      # 录制文件输出目录
+      - ${DOWNLOADS_DIR:-./downloads}:/app/downloads
+      # 日志目录（与 config-manager 共享 SQLite 数据库）
+      - ./logs:/app/logs
+      # 配置备份目录
+      - ./backup_config:/app/backup_config
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5001/recording-status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---- Web 管理台服务 ----
+  # 运行 config-manager，提供 Web 界面和 API（端口 5000）
+  # 通过 --experimental-sqlite 启用 Node.js 22 内置 SQLite
+  config-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: live-recorder-node:latest
+    container_name: config-manager
+    restart: unless-stopped
+    command: ["node", "--experimental-sqlite", "config-manager/dist/server.js"]
+    ports:
+      - "${MANAGER_PORT:-5000}:5000"
+    volumes:
+      # 配置文件（与 recorder 共享同一份配置）
+      - ./config:/app/config
+      # Docker 专用 config-manager 配置，覆盖镜像内的 config.js
+      - ./docker/config-manager.config.js:/app/config-manager/config.js:ro
+      # 录制文件目录（管理台需要浏览/删除录制文件）
+      - ${DOWNLOADS_DIR:-./downloads}:/app/downloads
+      # 日志目录（与 recorder 共享，SQLite 数据库读写）
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      recorder:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

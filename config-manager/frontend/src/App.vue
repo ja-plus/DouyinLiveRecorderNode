@@ -22,9 +22,12 @@
         <a-dropdown trigger="click" position="br" :popup-max-height="false" @select="onThemeSelect">
           <a-button class="theme-button" type="text" aria-label="切换主题">
             <template #icon>
-              <icon-sun-fill v-if="themeMode === 'light'" />
-              <icon-moon-fill v-else-if="themeMode === 'dark'" />
-              <icon-desktop v-else />
+              <svg class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18V4c4.42 0 8 3.58 8 8s-3.58 8-8 8z"
+                />
+              </svg>
             </template>
           </a-button>
           <template #content>
@@ -60,7 +63,7 @@
 
     <a-layout-content class="content">
       <router-view v-slot="{ Component }">
-        <Transition :name="routeTransition" mode="out-in">
+        <Transition :name="transitionName" mode="out-in">
           <component :is="Component" />
         </Transition>
       </router-view>
@@ -90,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getAuthStatus, logout } from './auth';
 import { isMobile } from './composables/useMobile';
@@ -100,7 +103,26 @@ const route = useRoute();
 const router = useRouter();
 
 const selectedKeys = computed(() => [String(route.name ?? '')]);
-const routeTransition = computed(() => route.name === 'appConfig' ? 'route-forward' : 'route-back');
+
+// 主页面路由顺序（不含 login），用于判断进入/退出动画的滑动方向
+// 索引增大 → 前进（新页从右进入，旧页向左退出）
+// 索引减小 → 后退（新页从左进入，旧页向右退出）
+const pageOrder = ['urlConfig', 'appConfig', 'logs'] as const;
+const transitionName = ref<'route-forward' | 'route-back'>('route-forward');
+
+watch(
+  () => route.name,
+  (toName, fromName) => {
+    const fromIndex = fromName ? pageOrder.indexOf(fromName as (typeof pageOrder)[number]) : -1;
+    const toIndex = toName ? pageOrder.indexOf(toName as (typeof pageOrder)[number]) : -1;
+    if (fromIndex === -1 || toIndex === -1) {
+      transitionName.value = 'route-forward';
+      return;
+    }
+    transitionName.value = toIndex > fromIndex ? 'route-forward' : 'route-back';
+  },
+);
+
 const loginEnabled = ref(false);
 
 onMounted(async () => {
@@ -241,6 +263,12 @@ body[arco-theme='dark'] {
 }
 .theme-button :deep(.arco-icon) {
   font-size: 18px;
+}
+.theme-toggle-icon {
+  width: 1em;
+  height: 1em;
+  font-size: 18px;
+  display: block;
 }
 
 /* 移动端：压缩间距和菜单项内边距，保证顶栏单行摆下 */
