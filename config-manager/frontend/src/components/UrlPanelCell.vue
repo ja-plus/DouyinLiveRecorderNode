@@ -121,7 +121,6 @@ function onQualityClear(): void {
   flex-direction: column;
   justify-content: center;
   gap: 6px;
-  height: 90px;
   /* max-width: calc(100% - 16px); */
   /* margin: 0px 8px; */
   padding: 10px 14px;

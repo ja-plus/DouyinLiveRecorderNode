@@ -572,6 +572,7 @@ function containsUrl(str) {
 // 以独立微服务方式向 config-manager 暴露实时录制状态。
 // config-manager 后端通过 /recording-status/stream（SSE）订阅并中继给浏览器。
 // 注意：config-manager 不再由本进程嵌入启动，需独立运行 pnpm run config-manager。
+/** @type {import('http').Server | null}  */
 let statusServer = null;
 /** @returns {Promise<void>} */
 async function startStatusServer() {
@@ -608,11 +609,11 @@ async function startStatusServer() {
     res.end(JSON.stringify({ error: 'Not Found' }));
   });
   return new Promise((resolve) => {
-    statusServer.listen(port, host, () => {
+    statusServer?.listen(port, host, () => {
       console.log(`录制状态服务已启动: http://${host}:${port} （config-manager 通过此地址订阅实时状态）`);
       resolve();
     });
-    statusServer.on('error', (e) => {
+    statusServer?.on('error', (e) => {
       console.log(`录制状态服务启动失败（不影响录制）: ${e instanceof Error ? e.message : String(e)}`);
       resolve();
     });

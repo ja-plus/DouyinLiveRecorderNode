@@ -72,7 +72,6 @@ function onThumbError() {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 92px;
   padding: 12px 14px;
   margin: 0 8px;
   background: var(--color-bg-2, #fff);
@@ -138,7 +137,7 @@ function onThumbError() {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: 4x;
 }
 
 .rec-panel-name {

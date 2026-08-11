@@ -18,7 +18,7 @@
           :theme="isDark ? 'dark' : 'light'"
           :columns="columns"
           :data-source="items"
-          :row-height="80"
+          :row-height="120"
           no-data-full
           :row-active="false"
           :row-hover="false"
@@ -76,6 +76,7 @@ const columns: StkTableColumn<RecordingRow>[] = [
   {
     title: "",
     dataIndex: "id" as never,
+    width: 100,
     customCell: markRaw(RecordingPanelCell),
   },
 ];

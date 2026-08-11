@@ -52,13 +52,13 @@ export default {
   loginPassword: 'admin',
   authSecret: '78f654006c8e8538a7e3574679a903958ab1db99d7d67aeb46a612ce1b7b3eb7',
   authCookieMaxAgeDays: 30,
-  recorderStatusUrl: 'http://127.0.0.1:5001',
+  recorderStatusUrl: 'http://0.0.0.0:5001',
   // 日志级别：trace/debug/info/warn/error/fatal/silent，默认 info
   // 控制文件和数据库流的日志级别
   logLevel: 'info',
   // 控制台日志级别：留空则与 logLevel 一致
   // 生产环境建议设为 'warn'，避免大量请求日志经 pino-pretty 同步格式化导致 CPU 飙升
-  consoleLogLevel: 'warn',
+  consoleLogLevel: 'info',
   // 日志持久化总开关：false 仅控制台输出，true 同时持久化到文件和数据库
   enableLog: false,
   // 日志文件目录；相对路径以项目根目录为基准，留空则不写文件
@@ -66,6 +66,4 @@ export default {
   // SQLite 日志数据库路径；相对路径以项目根目录为基准，留空则不持久化
   // 示例：'logs/config-manager.db' 或 'D:/logs/app.db'
   sqliteLogPath: 'logs/config-manager.db',
-  // certPath: './server.crt',
-  // keyPath: './server.key'
 };

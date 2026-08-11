@@ -93,6 +93,9 @@ body {
   color: var(--color-text-1, #1d2129);
   transition: background-color 0.2s;
 }
+* {
+  box-sizing: border-box;
+}
 
 /* 暗色下 --color-fill-2 是半透明白（用于叠加深色底），不能作页面背景，改用实色背景变量 */
 body[arco-theme='dark'] {
