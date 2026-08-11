@@ -5,16 +5,17 @@
   "type": "module",
   "main": "main.js",
   "scripts": {
+    "dev": "node --watch main.js",
     "start": "node --max-semi-space-size=4 --max-old-space-size=256 main.js",
     "bun:start": "bun main.js",
-    "dev": "node --watch main.js",
-    "build:config-manager": "tsc -p config-manager/tsconfig.json",
+    "config-manager": "node --experimental-sqlite config-manager/dist/server.js",
+    "bun:config-manager": "bun --cwd config-manager server.ts",
+    "build:config-manager": "swc config-manager/server.ts config-manager/src -d config-manager/dist --config-file config-manager/.swcrc",
     "dev:config-manager-frontend": "vite --config config-manager/frontend/vite.config.ts config-manager/frontend",
     "build:config-manager-frontend": "vue-tsc --noEmit -p config-manager/frontend/tsconfig.json && vite build --config config-manager/frontend/vite.config.ts config-manager/frontend",
     "preview:config-manager-frontend": "vite preview --config config-manager/frontend/vite.config.ts config-manager/frontend",
-    "config-manager": "node --experimental-sqlite config-manager/dist/server.js",
-    "bun:config-manager": "bun --cwd config-manager server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:config-manager": "tsc --noEmit -p config-manager/tsconfig.json"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -42,6 +43,8 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.47",
     "@types/ini": "^4.1.1",
     "@types/node": "^26.1.2",
     "@types/nodemailer": "^8.0.1",
